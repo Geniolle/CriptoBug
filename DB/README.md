@@ -8,6 +8,7 @@ Serviço separado para armazenar credenciais de exchanges por usuário (Firebase
 - `GET /account/connections` (Bearer Firebase ID token)
 - `POST /account/connections` (Bearer Firebase ID token)
 - `DELETE /account/connections?exchange=binance|kraken|okx|bybit` (Bearer Firebase ID token)
+- `GET /account/egress-ip` (Bearer Firebase ID token) -> IP publico de saida do servico (para whitelist na Binance)
 
 ## Env vars (server)
 

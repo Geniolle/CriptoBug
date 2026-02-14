@@ -123,6 +123,30 @@ function extractExchangeOrderId(result: unknown): string | null {
   return null
 }
 
+let cachedEgressIp: { ip: string; fetchedAt: number } | null = null
+
+async function getEgressIp(): Promise<string> {
+  const now = Date.now()
+  // Avoid hammering ipify; refresh every 5 minutes.
+  if (cachedEgressIp && now - cachedEgressIp.fetchedAt < 5 * 60 * 1000) {
+    return cachedEgressIp.ip
+  }
+
+  const response = await fetch("https://api.ipify.org?format=json", {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(5_000),
+  })
+  const payload = (await response.json().catch(() => null)) as { ip?: string } | null
+
+  const ip = payload?.ip ? String(payload.ip) : ""
+  if (!response.ok || !ip) {
+    throw new Error("Falha ao obter IP publico do servidor")
+  }
+
+  cachedEgressIp = { ip, fetchedAt: now }
+  return ip
+}
+
 app.get("/trade/actions", async (request, reply) => {
   try {
     const userId = await requireUserId(request.headers.authorization)
@@ -148,6 +172,17 @@ app.get("/trade/actions", async (request, reply) => {
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erro desconhecido"
     return reply.code(401).send({ error: message })
+  }
+})
+
+app.get("/account/egress-ip", async (request, reply) => {
+  try {
+    await requireUserId(request.headers.authorization)
+    const ip = await getEgressIp()
+    return reply.code(200).send({ ip })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Erro desconhecido"
+    return reply.code(400).send({ error: message })
   }
 })
 

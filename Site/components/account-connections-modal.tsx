@@ -243,13 +243,68 @@ function useAccountConnections(options: { userEmail: string; enabled: boolean })
 }
 
 export function AccountConnectionsPanel({ userEmail, enabled = true }: { userEmail: string; enabled?: boolean }) {
+  const { getIdToken } = useAuth()
   const { connections, linked, loading, error, savedMessage, updateField, handleSave, handleClear } = useAccountConnections({
     userEmail,
     enabled,
   })
 
+  const baseUrl = useMemo(() => {
+    const raw = process.env.NEXT_PUBLIC_DB_API_BASE_URL ?? ""
+    return raw.replace(/\/+$/, "")
+  }, [])
+
+  const [egressIp, setEgressIp] = useState<string | null>(null)
+  const [egressLoading, setEgressLoading] = useState(false)
+  const [egressError, setEgressError] = useState<string | null>(null)
+
+  async function loadEgressIp() {
+    setEgressLoading(true)
+    setEgressError(null)
+    try {
+      if (!baseUrl) throw new Error("DB API nao configurada (NEXT_PUBLIC_DB_API_BASE_URL).")
+      const token = await getIdToken()
+      const response = await fetch(`${baseUrl}/account/egress-ip`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      })
+      const payload = (await response.json().catch(() => null)) as { ip?: string; error?: string } | null
+      if (!response.ok) throw new Error(payload?.error || "Falha ao obter IP do servidor")
+      setEgressIp(payload?.ip ? String(payload.ip) : null)
+    } catch (e) {
+      setEgressError(e instanceof Error ? e.message : "Erro desconhecido")
+    } finally {
+      setEgressLoading(false)
+    }
+  }
+
   return (
     <div>
+      <div className="mb-4 rounded-xl border border-border bg-background/30 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm text-foreground font-semibold">Binance: IP whitelist</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              Para operar (Trading habilitado), a Binance exige restringir por IP. Voce deve colocar o IP publico de saida do servico <span className="font-semibold">/DB</span>.
+              Em hosts como Railway, esse IP pode mudar em redeploy.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={loadEgressIp}
+            disabled={!enabled || egressLoading || !baseUrl}
+            className="shrink-0 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20 disabled:opacity-60"
+          >
+            {egressLoading ? "Carregando..." : "Mostrar IP"}
+          </button>
+        </div>
+
+        {egressError ? <div className="mt-3 text-xs text-rose-200">{egressError}</div> : null}
+        {egressIp ? (
+          <div className="mt-3 rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono text-foreground">{egressIp}</div>
+        ) : null}
+      </div>
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {EXCHANGES.map((exchange) => {
           const values = connections[exchange.key]

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Bug, LogIn, LogOut, Loader2 } from "lucide-react"
+import Link from "next/link"
 
 import { AccountConnectionsModal } from "@/components/account-connections-modal"
 import { useAuth } from "@/components/auth-provider"
@@ -51,6 +52,14 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-3">
+          {user ? (
+            <Link
+              href="/history"
+              className="hidden md:inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-background/60 text-foreground text-xs font-semibold hover:bg-secondary/60 transition-colors"
+            >
+              Historico
+            </Link>
+          ) : null}
           {user ? (
             <button
               type="button"

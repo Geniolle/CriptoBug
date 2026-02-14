@@ -68,6 +68,9 @@ export function AccountConnectionsModal({ open, userName, userEmail, onClose }: 
       setConnections(emptyConnections())
 
       try {
+        if (!baseUrl) {
+          throw new Error("DB API nao configurada (NEXT_PUBLIC_DB_API_BASE_URL).")
+        }
         const token = await getIdToken()
         const response = await fetch(`${baseUrl}/account/connections`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -135,6 +138,9 @@ export function AccountConnectionsModal({ open, userName, userEmail, onClose }: 
     setError(null)
 
     try {
+      if (!baseUrl) {
+        throw new Error("DB API nao configurada (NEXT_PUBLIC_DB_API_BASE_URL).")
+      }
       const token = await getIdToken()
       for (const exchange of EXCHANGES) {
         const values = connections[exchange.key]
@@ -194,6 +200,9 @@ export function AccountConnectionsModal({ open, userName, userEmail, onClose }: 
     setError(null)
 
     try {
+      if (!baseUrl) {
+        throw new Error("DB API nao configurada (NEXT_PUBLIC_DB_API_BASE_URL).")
+      }
       const token = await getIdToken()
       if (!exchange) {
         for (const ex of EXCHANGES) {

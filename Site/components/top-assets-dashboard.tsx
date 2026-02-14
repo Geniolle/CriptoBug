@@ -101,9 +101,9 @@ export function TopAssetsDashboard() {
         <div className="lg:col-span-3">
           <PortfolioChart asset={selectedAsset} period={period} onChangePeriod={setPeriod} />
         </div>
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 lg:h-[580px]">
           {loading ? (
-            <div className="rounded-2xl border border-border bg-card p-6 h-full text-sm text-muted-foreground">
+            <div className="rounded-2xl border border-border bg-card p-6 h-full text-sm text-muted-foreground overflow-hidden">
               Carregando Top 30 com dados do hooks...
             </div>
           ) : (

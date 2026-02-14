@@ -86,6 +86,7 @@ app = FastAPI(title="Crypto Chart API (CCXT)", version="1.0.0")
 
 DEFAULT_EXCHANGE = os.getenv("DEFAULT_EXCHANGE", "binance").strip().lower()
 DEFAULT_QUOTE = os.getenv("DEFAULT_QUOTE", "USDT").strip().upper()
+FALLBACK_EXCHANGES: tuple[str, ...] = ("binance", "bybit", "okx", "kraken", "coinbase")
 
 
 @app.get("/health")
@@ -102,11 +103,11 @@ def get_chart_data(
 ) -> ChartDataResponse:
     config = resolve_period(period)
     symbol = to_exchange_symbol(coin, quote)
-    market = fetch_market_ohlcv(exchange, symbol, config)
+    resolved_exchange, market = fetch_market_ohlcv_with_fallback(exchange, symbol, config)
     candles = [to_candle_point(item) for item in market]
 
     return ChartDataResponse(
-        exchange=exchange.lower().strip(),
+        exchange=resolved_exchange,
         symbol=symbol,
         period=config.key,
         timeframe=config.timeframe,
@@ -126,12 +127,12 @@ def get_chart_png(
 ) -> Response:
     config = resolve_period(period)
     symbol = to_exchange_symbol(coin, quote)
-    ohlcv = fetch_market_ohlcv(exchange, symbol, config)
+    resolved_exchange, ohlcv = fetch_market_ohlcv_with_fallback(exchange, symbol, config)
 
     if not ohlcv:
-        raise HTTPException(status_code=404, detail=f"Sem dados para {symbol} em {exchange}")
+        raise HTTPException(status_code=404, detail=f"Sem dados para {symbol} em {resolved_exchange}")
 
-    png = build_chart_png(symbol=symbol, exchange=exchange, period=config, ohlcv=ohlcv, width=width, height=height)
+    png = build_chart_png(symbol=symbol, exchange=resolved_exchange, period=config, ohlcv=ohlcv, width=width, height=height)
     return Response(content=png, media_type="image/png")
 
 
@@ -177,17 +178,89 @@ def get_exchange(exchange_name: str) -> ccxt.Exchange:
     return exchange
 
 
-def fetch_market_ohlcv(exchange_name: str, symbol: str, config: PeriodConfig) -> list[list[float]]:
+def get_exchange_candidates(exchange_name: str) -> list[str]:
+    preferred = exchange_name.strip().lower()
+    if not preferred:
+        preferred = DEFAULT_EXCHANGE
+
+    if not hasattr(ccxt, preferred):
+        raise HTTPException(status_code=400, detail=f"Exchange '{exchange_name}' nao suportada pelo ccxt")
+
+    ordered = [preferred]
+    for candidate in FALLBACK_EXCHANGES:
+        if candidate != preferred and hasattr(ccxt, candidate):
+            ordered.append(candidate)
+    return ordered
+
+
+def patch_exchange_urls_if_needed(exchange: ccxt.Exchange, exchange_name: str) -> None:
+    # Alguns ambientes/versoes do ccxt podem carregar url de API como None na OKX.
+    if exchange_name != "okx":
+        return
+
+    urls = getattr(exchange, "urls", None)
+    if not isinstance(urls, dict):
+        return
+
+    api_urls = urls.get("api")
+    if not isinstance(api_urls, dict):
+        return
+
+    base_url = api_urls.get("public") or api_urls.get("private") or api_urls.get("rest") or "https://www.okx.com"
+    if api_urls.get("public") is None:
+        api_urls["public"] = base_url
+    if api_urls.get("private") is None:
+        api_urls["private"] = base_url
+    if api_urls.get("rest") is None:
+        api_urls["rest"] = base_url
+    exchange.urls["api"] = api_urls
+
+
+def fetch_market_ohlcv_with_fallback(exchange_name: str, symbol: str, config: PeriodConfig) -> tuple[str, list[list[float]]]:
+    candidates = get_exchange_candidates(exchange_name)
+    last_error: HTTPException | None = None
+
+    for candidate in candidates:
+        try:
+            data = fetch_market_ohlcv_single(candidate, symbol, config)
+            return candidate, data
+        except HTTPException as exc:
+            last_error = exc
+            # 400: erro de parametro/exchange nao deve continuar fallback.
+            if exc.status_code == 400:
+                raise
+            continue
+
+    if last_error:
+        detail = f"Falha ao buscar OHLCV em fallback ({', '.join(candidates)}): {last_error.detail}"
+        raise HTTPException(status_code=502, detail=detail)
+
+    raise HTTPException(status_code=502, detail="Falha inesperada no fallback de exchanges")
+
+
+def fetch_market_ohlcv_single(exchange_name: str, symbol: str, config: PeriodConfig) -> list[list[float]]:
     exchange = get_exchange(exchange_name)
+    patch_exchange_urls_if_needed(exchange, exchange_name.strip().lower())
+
     try:
         markets = exchange.load_markets()
+    except TypeError as exc:
+        # fallback defensivo para cenarios de URL interna nula no cliente da exchange.
+        message = str(exc)
+        if "NoneType" in message and "unsupported operand type(s) for +" in message:
+            patch_exchange_urls_if_needed(exchange, exchange_name.strip().lower())
+            try:
+                markets = exchange.load_markets(reload=True)
+            except Exception as retry_exc:
+                raise HTTPException(status_code=502, detail=f"Falha ao carregar markets da exchange: {retry_exc}") from retry_exc
+        else:
+            raise HTTPException(status_code=502, detail=f"Falha ao carregar markets da exchange: {exc}") from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Falha ao carregar markets da exchange: {exc}") from exc
 
     if symbol not in markets:
         raise HTTPException(status_code=404, detail=f"Par '{symbol}' nao encontrado em {exchange_name}")
 
-    now_ms = exchange.milliseconds()
     since_ms = None
     if config.lookback is not None:
         since_dt = datetime.now(timezone.utc) - config.lookback

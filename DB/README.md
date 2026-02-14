@@ -19,6 +19,7 @@ Serviço separado para armazenar credenciais de exchanges por usuário (Firebase
 - `FIREBASE_PRIVATE_KEY` (com `\\n` escapado)
 - `CORS_ORIGINS` (opcional, lista separada por virgula; default `*`)
 - `TRADING_DRY_RUN` (opcional; default `true`. Use `false` para executar ordens reais)
+  - Aceita: `true|1|yes|on` (DRY_RUN ligado) e `false|0|no|off` (DRY_RUN desligado)
 
 ## Schema
 

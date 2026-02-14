@@ -43,7 +43,7 @@ async function requireUserId(authorizationHeader: string | undefined): Promise<s
 }
 
 app.get("/health", async () => {
-  return { status: "ok" }
+  return { status: "ok", dryRun: isDryRunEnabled() }
 })
 
 app.get("/account/connections", async (request, reply) => {
@@ -101,10 +101,26 @@ const OrderSchema = z.object({
   price: z.number().positive().optional(),
 })
 
+function parseBooleanEnv(raw: string | null, defaultValue: boolean): boolean {
+  if (!raw) return defaultValue
+  const normalized = raw.trim().toLowerCase()
+  if (["1", "true", "yes", "y", "on"].includes(normalized)) return true
+  if (["0", "false", "no", "n", "off"].includes(normalized)) return false
+  return defaultValue
+}
+
 function isDryRunEnabled(): boolean {
-  const raw = optionalEnv("TRADING_DRY_RUN")
-  if (!raw) return true
-  return raw.toLowerCase() !== "false"
+  // Safety default: enabled (does NOT send orders to the exchange).
+  return parseBooleanEnv(optionalEnv("TRADING_DRY_RUN"), true)
+}
+
+function extractExchangeOrderId(result: unknown): string | null {
+  if (!result || typeof result !== "object") return null
+  const anyResult = result as Record<string, unknown>
+  const id = anyResult.id ?? anyResult.orderId ?? anyResult.clientOrderId
+  if (typeof id === "string") return id
+  if (typeof id === "number") return String(id)
+  return null
 }
 
 app.get("/trade/actions", async (request, reply) => {
@@ -123,6 +139,7 @@ app.get("/trade/actions", async (request, reply) => {
         orderType: row.order_type,
         amount: row.amount,
         status: row.status,
+        exchangeOrderId: extractExchangeOrderId(row.result_json),
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         error: row.error_message,
@@ -171,7 +188,7 @@ app.post("/trade/order", async (request, reply) => {
       })
 
       await updateTradeAction({ id, status: "EXECUTED", result })
-      return reply.code(200).send({ ok: true, id, status: "EXECUTED" })
+      return reply.code(200).send({ ok: true, id, status: "EXECUTED", exchangeOrderId: extractExchangeOrderId(result) })
     } catch (execError) {
       const msg = execError instanceof Error ? execError.message : "Falha ao executar ordem"
       await updateTradeAction({ id, status: "FAILED", errorMessage: msg })
@@ -211,6 +228,8 @@ requireEnv("SECRETS_ENCRYPTION_KEY")
 requireEnv("FIREBASE_PROJECT_ID")
 requireEnv("FIREBASE_CLIENT_EMAIL")
 requireEnv("FIREBASE_PRIVATE_KEY")
+
+app.log.info({ dryRun: isDryRunEnabled() }, "Trading mode (TRADING_DRY_RUN)")
 
 // Ensure schema exists.
 await runMigrations()

@@ -12,6 +12,7 @@ interface TradeActionItem {
   orderType: string
   amount: string
   status: string
+  exchangeOrderId?: string | null
   createdAt: string
   updatedAt: string
   error?: string | null
@@ -110,6 +111,7 @@ export function TradeOngoing() {
                 <td className="py-2 text-foreground font-mono">{item.amount}</td>
                 <td className="py-2 text-muted-foreground">
                   {item.status}
+                  {item.exchangeOrderId ? ` (order: ${item.exchangeOrderId})` : ""}
                   {item.error ? ` (${item.error})` : ""}
                 </td>
               </tr>
@@ -127,4 +129,3 @@ export function TradeOngoing() {
     </div>
   )
 }
-

@@ -182,12 +182,26 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
         }),
       })
 
-      const payload = (await response.json().catch(() => null)) as { ok?: boolean; id?: string; status?: string; error?: string } | null
+      const payload = (await response.json().catch(() => null)) as {
+        ok?: boolean
+        id?: string
+        status?: string
+        exchangeOrderId?: string | null
+        error?: string
+      } | null
       if (!response.ok) {
         throw new Error(payload?.error || "Falha ao enviar ordem")
       }
 
-      setTradeMessage(`Ordem registrada: ${payload?.status ?? "OK"} (${payload?.id ?? "-"})`)
+      const status = payload?.status ?? "OK"
+      if (status === "DRY_RUN") {
+        setTradeMessage("DRY_RUN: ordem registrada apenas no historico (nao enviada a exchange). Configure TRADING_DRY_RUN=false no servico /DB e reinicie.")
+      } else if (status === "EXECUTED") {
+        const extra = payload?.exchangeOrderId ? ` | order: ${payload.exchangeOrderId}` : ""
+        setTradeMessage(`EXECUTED: ${payload?.id ?? "-"}${extra}`)
+      } else {
+        setTradeMessage(`Ordem registrada: ${status} (${payload?.id ?? "-"})`)
+      }
       setTradeAmount("")
     } catch (tradeError) {
       setError(tradeError instanceof Error ? tradeError.message : "Erro desconhecido")

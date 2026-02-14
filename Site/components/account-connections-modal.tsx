@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { X } from "lucide-react"
 
+import { useAuth } from "@/components/auth-provider"
+
 type ExchangeKey = "binance" | "kraken" | "okx" | "bybit"
 
 interface ExchangeConnection {
@@ -37,32 +39,78 @@ function emptyConnections(): ConnectionsState {
 }
 
 export function AccountConnectionsModal({ open, userName, userEmail, onClose }: AccountConnectionsModalProps) {
+  const { getIdToken } = useAuth()
   const [connections, setConnections] = useState<ConnectionsState>(emptyConnections())
   const [savedMessage, setSavedMessage] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [linked, setLinked] = useState<Record<ExchangeKey, { linked: boolean; apiKeyHint: string; hasPassphrase: boolean }>>({
+    binance: { linked: false, apiKeyHint: "", hasPassphrase: false },
+    kraken: { linked: false, apiKeyHint: "", hasPassphrase: false },
+    okx: { linked: false, apiKeyHint: "", hasPassphrase: false },
+    bybit: { linked: false, apiKeyHint: "", hasPassphrase: false },
+  })
 
-  const storageKey = useMemo(() => `cryptobug.exchange.connections.${userEmail.toLowerCase()}`, [userEmail])
+  const _userKey = useMemo(() => userEmail.toLowerCase(), [userEmail])
+  const baseUrl = useMemo(() => {
+    const raw = process.env.NEXT_PUBLIC_DB_API_BASE_URL ?? ""
+    return raw.replace(/\/+$/, "")
+  }, [])
 
   useEffect(() => {
     if (!open) return
+    let cancelled = false
 
-    const raw = window.localStorage.getItem(storageKey)
-    if (!raw) {
+    async function loadStatus() {
+      setLoading(true)
+      setError(null)
+      setSavedMessage(null)
       setConnections(emptyConnections())
-      return
+
+      try {
+        const token = await getIdToken()
+        const response = await fetch(`${baseUrl}/account/connections`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        })
+
+        const payload = (await response.json()) as {
+          connections?: Array<{ exchange: ExchangeKey; linked: boolean; apiKeyHint?: string; hasPassphrase?: boolean }>
+          error?: string
+        }
+
+        if (!response.ok) {
+          throw new Error(payload?.error || "Falha ao carregar conexoes")
+        }
+
+        const next = {
+          binance: { linked: false, apiKeyHint: "", hasPassphrase: false },
+          kraken: { linked: false, apiKeyHint: "", hasPassphrase: false },
+          okx: { linked: false, apiKeyHint: "", hasPassphrase: false },
+          bybit: { linked: false, apiKeyHint: "", hasPassphrase: false },
+        }
+
+        for (const item of payload.connections ?? []) {
+          next[item.exchange] = {
+            linked: Boolean(item.linked),
+            apiKeyHint: item.apiKeyHint ?? "",
+            hasPassphrase: Boolean(item.hasPassphrase),
+          }
+        }
+
+        if (!cancelled) setLinked(next)
+      } catch (loadError) {
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Erro desconhecido")
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
 
-    try {
-      const parsed = JSON.parse(raw) as Partial<ConnectionsState>
-      setConnections({
-        binance: { ...emptyConnections().binance, ...(parsed.binance ?? {}) },
-        kraken: { ...emptyConnections().kraken, ...(parsed.kraken ?? {}) },
-        okx: { ...emptyConnections().okx, ...(parsed.okx ?? {}) },
-        bybit: { ...emptyConnections().bybit, ...(parsed.bybit ?? {}) },
-      })
-    } catch {
-      setConnections(emptyConnections())
+    loadStatus()
+    return () => {
+      cancelled = true
     }
-  }, [open, storageKey])
+  }, [open, getIdToken, baseUrl])
 
   useEffect(() => {
     if (!savedMessage) return
@@ -82,16 +130,103 @@ export function AccountConnectionsModal({ open, userName, userEmail, onClose }: 
     }))
   }
 
-  function handleSave() {
-    window.localStorage.setItem(storageKey, JSON.stringify(connections))
-    setSavedMessage("Configuracoes salvas.")
+  async function handleSave() {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const token = await getIdToken()
+      for (const exchange of EXCHANGES) {
+        const values = connections[exchange.key]
+        const hasKey = values.apiKey.trim() !== "" && values.apiSecret.trim() !== ""
+        if (!hasKey) continue
+        if (exchange.needsPassphrase && values.passphrase.trim() === "") {
+          throw new Error(`Passphrase obrigatoria para ${exchange.label}`)
+        }
+
+        const response = await fetch(`${baseUrl}/account/connections`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            exchange: exchange.key,
+            apiKey: values.apiKey.trim(),
+            apiSecret: values.apiSecret.trim(),
+            passphrase: values.passphrase.trim() || undefined,
+          }),
+        })
+
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null
+        if (!response.ok) {
+          throw new Error(payload?.error || `Falha ao salvar ${exchange.label}`)
+        }
+      }
+
+      setSavedMessage("Configuracoes salvas no servidor.")
+      setConnections(emptyConnections())
+
+      // reload linked status
+      const response = await fetch(`${baseUrl}/account/connections`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      })
+      const payload = (await response.json()) as { connections?: Array<{ exchange: ExchangeKey; linked: boolean; apiKeyHint?: string; hasPassphrase?: boolean }> }
+      const next = { ...linked }
+      for (const item of payload.connections ?? []) {
+        next[item.exchange] = {
+          linked: Boolean(item.linked),
+          apiKeyHint: item.apiKeyHint ?? "",
+          hasPassphrase: Boolean(item.hasPassphrase),
+        }
+      }
+      setLinked(next)
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Erro desconhecido")
+    } finally {
+      setLoading(false)
+    }
   }
 
-  function handleClear() {
-    const cleared = emptyConnections()
-    setConnections(cleared)
-    window.localStorage.setItem(storageKey, JSON.stringify(cleared))
-    setSavedMessage("Configuracoes limpas.")
+  async function handleClear(exchange?: ExchangeKey) {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const token = await getIdToken()
+      if (!exchange) {
+        for (const ex of EXCHANGES) {
+          await fetch(`${baseUrl}/account/connections?exchange=${encodeURIComponent(ex.key)}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        }
+        setSavedMessage("Conexoes removidas do servidor.")
+        setLinked({
+          binance: { linked: false, apiKeyHint: "", hasPassphrase: false },
+          kraken: { linked: false, apiKeyHint: "", hasPassphrase: false },
+          okx: { linked: false, apiKeyHint: "", hasPassphrase: false },
+          bybit: { linked: false, apiKeyHint: "", hasPassphrase: false },
+        })
+      } else {
+        const response = await fetch(`${baseUrl}/account/connections?exchange=${encodeURIComponent(exchange)}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null
+        if (!response.ok) throw new Error(payload?.error || "Falha ao remover conexao")
+
+        setSavedMessage("Conexao removida.")
+        setLinked((prev) => ({ ...prev, [exchange]: { linked: false, apiKeyHint: "", hasPassphrase: false } }))
+      }
+
+      setConnections(emptyConnections())
+    } catch (clearError) {
+      setError(clearError instanceof Error ? clearError.message : "Erro desconhecido")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -122,7 +257,7 @@ export function AccountConnectionsModal({ open, userName, userEmail, onClose }: 
         <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
           {EXCHANGES.map((exchange) => {
             const values = connections[exchange.key]
-            const isLinked = values.apiKey.trim() !== "" && values.apiSecret.trim() !== ""
+            const isLinked = linked[exchange.key].linked
 
             return (
               <div key={exchange.key} className="rounded-xl border border-border bg-background/30 p-4">
@@ -136,6 +271,14 @@ export function AccountConnectionsModal({ open, userName, userEmail, onClose }: 
                     {isLinked ? "Vinculada" : "Nao vinculada"}
                   </span>
                 </div>
+
+                {linked[exchange.key].apiKeyHint ? (
+                  <div className="mb-3 text-[11px] text-muted-foreground font-mono">
+                    API Key: {linked[exchange.key].apiKeyHint}
+                  </div>
+                ) : (
+                  <div className="mb-3 text-[11px] text-muted-foreground">Nenhuma chave salva.</div>
+                )}
 
                 <div className="space-y-2.5">
                   <input
@@ -161,21 +304,36 @@ export function AccountConnectionsModal({ open, userName, userEmail, onClose }: 
                     />
                   ) : null}
                 </div>
+
+                <div className="mt-3 flex items-center justify-end gap-2">
+                  {isLinked ? (
+                    <button
+                      onClick={() => handleClear(exchange.key)}
+                      type="button"
+                      disabled={loading}
+                      className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-60"
+                    >
+                      Remover
+                    </button>
+                  ) : null}
+                </div>
               </div>
             )
           })}
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-border p-5">
-          <p className="text-xs text-muted-foreground">
-            As chaves ficam salvas localmente no navegador deste dispositivo.
-          </p>
+          <div className="text-xs text-muted-foreground">
+            <div>As chaves sao criptografadas no servidor antes de salvar no Postgres.</div>
+            {error ? <div className="mt-1 text-rose-200">Erro: {error}</div> : null}
+          </div>
 
           <div className="flex items-center gap-2">
             {savedMessage ? <span className="text-xs text-emerald-300">{savedMessage}</span> : null}
             <button
-              onClick={handleClear}
+              onClick={() => handleClear()}
               type="button"
+              disabled={loading}
               className="rounded-lg border border-border bg-secondary/50 px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
             >
               Limpar
@@ -183,9 +341,10 @@ export function AccountConnectionsModal({ open, userName, userEmail, onClose }: 
             <button
               onClick={handleSave}
               type="button"
+              disabled={loading}
               className="rounded-lg border border-primary/40 bg-primary/20 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/30"
             >
-              Salvar configuracoes
+              {loading ? "Salvando..." : "Salvar configuracoes"}
             </button>
           </div>
         </div>

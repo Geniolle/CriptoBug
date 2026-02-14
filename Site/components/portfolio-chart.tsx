@@ -19,6 +19,11 @@ const PERIOD_OPTIONS = [
   { key: "full", label: "FULL" },
 ] as const
 
+const AUTO_ZOOM_BARS = 40
+const REALTIME_POLL_MS_INTRADAY = 10_000
+const REALTIME_POLL_MS_SLOW = 60_000
+const MAX_RENDER_BARS_INTRADAY = 900
+
 interface PortfolioChartProps {
   asset: RankedAsset | null
   period: string
@@ -43,6 +48,16 @@ interface RemoteChartData {
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message
   return "erro desconhecido"
+}
+
+function mergeCandles(prev: ChartCandle[], incoming: ChartCandle[]): ChartCandle[] {
+  if (incoming.length === 0) return prev
+
+  const map = new Map<number, ChartCandle>()
+  for (const candle of prev) map.set(candle.timestamp, candle)
+  for (const candle of incoming) map.set(candle.timestamp, candle)
+
+  return Array.from(map.values()).sort((a, b) => a.timestamp - b.timestamp)
 }
 
 function toChartTime(candle: ChartCandle, intraday: boolean): Time | null {
@@ -83,6 +98,7 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [chartReady, setChartReady] = useState(false)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null)
 
   const headerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<HTMLDivElement>(null)
@@ -91,6 +107,8 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null)
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
+  const didAutoZoomRef = useRef(false)
+  const realtimeTimerRef = useRef<number | null>(null)
 
   const latestPoint = useMemo(() => (candles.length > 0 ? candles[candles.length - 1] : null), [candles])
 
@@ -106,11 +124,16 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
       resizeObserverRef.current.disconnect()
       resizeObserverRef.current = null
     }
+    if (realtimeTimerRef.current) {
+      window.clearInterval(realtimeTimerRef.current)
+      realtimeTimerRef.current = null
+    }
     chartApiRef.current?.remove()
     chartApiRef.current = null
     candleSeriesRef.current = null
     volumeSeriesRef.current = null
     setChartReady(false)
+    didAutoZoomRef.current = false
   }
 
   useEffect(() => {
@@ -121,6 +144,7 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
     const targetAsset = asset
 
     const controller = new AbortController()
+    didAutoZoomRef.current = false
 
     async function loadChartData() {
       setLoading(true)
@@ -164,6 +188,7 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
           .sort((a, b) => a.timestamp - b.timestamp)
 
         setCandles(mapped)
+        setLastUpdatedAt(Date.now())
       } catch (fetchError) {
         if ((fetchError as Error).name === "AbortError") return
         setError(fetchError instanceof Error ? fetchError.message : "Erro desconhecido")
@@ -181,12 +206,18 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
     let cancelled = false
 
     async function buildClientChart() {
-      if (!asset || !chartContainerRef.current || candles.length === 0) {
+      if (!asset || !chartContainerRef.current) {
         destroyChart()
         return
       }
 
-      destroyChart()
+      if (chartApiRef.current) {
+        return
+      }
+
+      if (candles.length === 0) {
+        return
+      }
 
       try {
         const chartsModule = await import("lightweight-charts")
@@ -261,48 +292,6 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
           borderVisible: false,
         })
 
-        const candleData: CandlestickData<Time>[] = []
-        const volumeData: HistogramData<Time>[] = []
-        const seenTimes = new Set<string>()
-
-        for (const item of candles) {
-          const time = toChartTime(item, isIntraday)
-          if (!time) continue
-
-          const timeKey = typeof time === "number" ? String(time) : `${time.year}-${time.month}-${time.day}`
-          if (seenTimes.has(timeKey)) continue
-          seenTimes.add(timeKey)
-
-          const high = Math.max(item.high, item.open, item.close)
-          const low = Math.min(item.low, item.open, item.close)
-
-          candleData.push({
-            time,
-            open: item.open,
-            high,
-            low,
-            close: item.close,
-          })
-
-          volumeData.push({
-            time,
-            value: item.volume,
-            color: item.close >= item.open ? "rgba(34, 197, 94, 0.45)" : "rgba(239, 68, 68, 0.45)",
-          })
-        }
-
-        if (candleData.length === 0) {
-          throw new Error("Nenhum candle valido para renderizacao")
-        }
-
-        candleSeries.setData(candleData)
-        volumeSeries.setData(volumeData)
-
-        const visibleBars = 40
-        const from = Math.max(0, candleData.length - visibleBars)
-        const to = Math.max(visibleBars, candleData.length + 1)
-        chart.timeScale().setVisibleLogicalRange({ from, to })
-
         const resizeObserver = new ResizeObserver((entries) => {
           const entry = entries[0]
           if (!entry) return
@@ -332,7 +321,124 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
       destroyChart()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [asset?.id, candles, isIntraday])
+  }, [asset?.id, period, isIntraday, candles.length])
+
+  useEffect(() => {
+    if (!chartApiRef.current || !candleSeriesRef.current || !volumeSeriesRef.current) return
+    if (candles.length === 0) return
+
+    const renderCandles = isIntraday ? candles.slice(-MAX_RENDER_BARS_INTRADAY) : candles
+
+    const candleData: CandlestickData<Time>[] = []
+    const volumeData: HistogramData<Time>[] = []
+    const seenTimes = new Set<string>()
+
+    for (const item of renderCandles) {
+      const time = toChartTime(item, isIntraday)
+      if (!time) continue
+
+      const timeKey = typeof time === "number" ? String(time) : `${time.year}-${time.month}-${time.day}`
+      if (seenTimes.has(timeKey)) continue
+      seenTimes.add(timeKey)
+
+      const high = Math.max(item.high, item.open, item.close)
+      const low = Math.min(item.low, item.open, item.close)
+
+      candleData.push({
+        time,
+        open: item.open,
+        high,
+        low,
+        close: item.close,
+      })
+
+      volumeData.push({
+        time,
+        value: item.volume,
+        color: item.close >= item.open ? "rgba(34, 197, 94, 0.45)" : "rgba(239, 68, 68, 0.45)",
+      })
+    }
+
+    if (candleData.length === 0) return
+
+    candleSeriesRef.current.setData(candleData)
+    volumeSeriesRef.current.setData(volumeData)
+
+    if (!didAutoZoomRef.current) {
+      const from = Math.max(0, candleData.length - AUTO_ZOOM_BARS)
+      const to = Math.max(AUTO_ZOOM_BARS, candleData.length + 1)
+      chartApiRef.current.timeScale().setVisibleLogicalRange({ from, to })
+      didAutoZoomRef.current = true
+    }
+  }, [candles, isIntraday])
+
+  useEffect(() => {
+    if (!asset) return
+    if (realtimeTimerRef.current) {
+      window.clearInterval(realtimeTimerRef.current)
+      realtimeTimerRef.current = null
+    }
+
+    const targetAsset = asset
+    const intervalMs = isIntraday ? REALTIME_POLL_MS_INTRADAY : REALTIME_POLL_MS_SLOW
+    const controller = new AbortController()
+
+    async function poll() {
+      try {
+        const response = await fetch(
+          `/api/chart-data?coin=${encodeURIComponent(targetAsset.symbol)}&period=${encodeURIComponent(period)}&exchange=${encodeURIComponent(targetAsset.bestExchangeKey || "binance")}&quote=${encodeURIComponent(targetAsset.quoteAsset)}`,
+          {
+            cache: "no-store",
+            signal: controller.signal,
+          },
+        )
+        const payload = (await response.json()) as RemoteChartData & { error?: string }
+        if (!response.ok) return
+
+        const incomingCandles = Array.isArray(payload.candles) ? payload.candles : []
+        const mapped = incomingCandles
+          .map((c) => ({
+            timestamp: Number(c.timestamp),
+            datetime_utc: c.datetime_utc,
+            open: Number(c.open),
+            high: Number(c.high),
+            low: Number(c.low),
+            close: Number(c.close),
+            volume: Number(c.volume),
+          }))
+          .filter(
+            (c) =>
+              Number.isFinite(c.timestamp) &&
+              Number.isFinite(c.open) &&
+              Number.isFinite(c.high) &&
+              Number.isFinite(c.low) &&
+              Number.isFinite(c.close) &&
+              Number.isFinite(c.volume),
+          )
+          .sort((a, b) => a.timestamp - b.timestamp)
+
+        if (mapped.length === 0) return
+
+        setCandles((prev) => mergeCandles(prev, mapped))
+        setLastUpdatedAt(Date.now())
+      } catch (pollError) {
+        if ((pollError as Error).name === "AbortError") return
+        // silencio: tempo real nao deve travar UI
+      }
+    }
+
+    // start quickly
+    void poll()
+    realtimeTimerRef.current = window.setInterval(poll, intervalMs)
+
+    return () => {
+      controller.abort()
+      if (realtimeTimerRef.current) {
+        window.clearInterval(realtimeTimerRef.current)
+        realtimeTimerRef.current = null
+      }
+    }
+  }, [asset?.id, period, isIntraday])
 
   useEffect(() => {
     if (!asset) return
@@ -428,8 +534,14 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
       </div>
 
       {asset ? (
-        <div className="mt-3 text-xs text-muted-foreground leading-5">
-          <span className="text-foreground">Rota sugerida:</span> comprar em {asset.buyExchange} e vender em {asset.sellExchange}. Custo estimado {asset.estimatedCostsPercent.toFixed(3)}%.
+        <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground leading-5">
+          <div>
+            <span className="text-foreground">Rota sugerida:</span> comprar em {asset.buyExchange} e vender em {asset.sellExchange}. Custo estimado{" "}
+            {asset.estimatedCostsPercent.toFixed(3)}%.
+          </div>
+          <div className="shrink-0 font-mono">
+            Tempo real: {isIntraday ? "ON" : "LENTO"} {lastUpdatedAt ? `| ${new Date(lastUpdatedAt).toLocaleTimeString()}` : ""}
+          </div>
         </div>
       ) : null}
     </div>

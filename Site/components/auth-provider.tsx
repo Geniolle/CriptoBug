@@ -10,6 +10,7 @@ interface AuthContextValue {
   loading: boolean
   loginWithGoogle: () => Promise<void>
   logout: () => Promise<void>
+  getIdToken: () => Promise<string>
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -45,6 +46,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout: async () => {
         if (!auth || !isFirebaseConfigured) return
         await signOut(auth)
+      },
+      getIdToken: async () => {
+        if (!user) {
+          throw new Error("Usuario nao autenticado")
+        }
+        return await user.getIdToken()
       },
     }),
     [loading, user],

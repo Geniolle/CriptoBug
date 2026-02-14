@@ -232,6 +232,9 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
             borderVisible: false,
             timeVisible: isIntraday,
             secondsVisible: false,
+            barSpacing: 10,
+            minBarSpacing: 6,
+            rightOffset: 4,
           },
           crosshair: {
             vertLine: { color: "rgba(52, 211, 153, 0.42)" },
@@ -294,7 +297,11 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
 
         candleSeries.setData(candleData)
         volumeSeries.setData(volumeData)
-        chart.timeScale().fitContent()
+
+        const visibleBars = 40
+        const from = Math.max(0, candleData.length - visibleBars)
+        const to = Math.max(visibleBars, candleData.length + 1)
+        chart.timeScale().setVisibleLogicalRange({ from, to })
 
         const resizeObserver = new ResizeObserver((entries) => {
           const entry = entries[0]

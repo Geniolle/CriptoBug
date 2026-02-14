@@ -32,6 +32,7 @@ interface ExchangeCandidate {
 }
 
 const MAX_PAIRS = Number.parseInt(process.env.TOP_ASSETS_MAX_PAIRS ?? "3500", 10)
+const TOP_ASSETS_EXCHANGES: SupportedExchange[] = SUPPORTED_EXCHANGES.filter((exchange) => exchange !== "coinbase")
 
 const TAKER_FEE_PERCENT: Record<SupportedExchange, number> = {
   binance: 0.1,
@@ -291,13 +292,13 @@ function rankAssetFromCandidates(
 }
 
 export async function GET() {
-  const snapshots = await Promise.all(SUPPORTED_EXCHANGES.map((exchange) => fetchExchangeSnapshot(exchange)))
+  const snapshots = await Promise.all(TOP_ASSETS_EXCHANGES.map((exchange) => fetchExchangeSnapshot(exchange)))
 
   const indexesByExchange = new Map<SupportedExchange, Map<string, HookMarketItem[]>>()
 
   snapshots.forEach((snapshot, idx) => {
     if (!snapshot) return
-    const exchange = SUPPORTED_EXCHANGES[idx]
+    const exchange = TOP_ASSETS_EXCHANGES[idx]
     indexesByExchange.set(exchange, buildMarketIndex(snapshot.mercados))
   })
 
@@ -305,7 +306,7 @@ export async function GET() {
     const keys = [asset.symbol, ...(asset.aliases ?? [])].map(normalizeSymbol)
 
     const candidates: ExchangeCandidate[] = []
-    for (const exchange of SUPPORTED_EXCHANGES) {
+    for (const exchange of TOP_ASSETS_EXCHANGES) {
       const index = indexesByExchange.get(exchange)
       if (!index) continue
       const candidate = selectBestMarketForExchange(exchange, keys, index)

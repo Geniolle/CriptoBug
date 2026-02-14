@@ -371,14 +371,15 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
           <div className="flex flex-col items-end gap-1">
             <div
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 ${
-                asset.netProfitPercent >= 0 ? "bg-emerald-500/20" : "bg-rose-500/20"
+                asset.guaranteedProfitPercent >= 0 ? "bg-emerald-500/20" : "bg-rose-500/20"
               }`}
             >
-              <span className={`font-bold text-sm font-mono ${asset.netProfitPercent >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                {formatPercent(asset.netProfitPercent)}
+              <span className={`font-bold text-sm font-mono ${asset.guaranteedProfitPercent >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                {formatPercent(asset.guaranteedProfitPercent)}
               </span>
             </div>
             <span className="text-muted-foreground text-xs">
+              {asset.guaranteedProfit ? "Lucro garantido (conservador) | " : "Lucro conservador | "}
               {latestPoint
                 ? `Ultimo: ${formatPrice(latestPoint.close)} | ${formatPercent(latestVariation)}`
                 : `Preco: ${formatPrice(asset.latestPrice)}`}

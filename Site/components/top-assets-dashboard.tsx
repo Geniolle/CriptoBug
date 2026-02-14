@@ -79,7 +79,7 @@ export function TopAssetsDashboard() {
     <>
       <div className="px-6 pt-1 pb-3 flex items-center justify-between gap-3">
         <div className="text-xs text-muted-foreground">
-          Ranking calculado pelos hooks com custos reais (taxa, slippage, transferencia).
+          Ranking calculado pelos hooks com lucro conservador (custos reais + buffer de seguranca).
           {generatedAt ? ` Atualizado em ${new Date(generatedAt).toLocaleString()}.` : ""}
         </div>
         <button

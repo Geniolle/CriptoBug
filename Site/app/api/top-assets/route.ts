@@ -44,6 +44,8 @@ const TAKER_FEE_PERCENT: Record<SupportedExchange, number> = {
 
 const TRANSFER_COST_PERCENT = 0.12
 const SLIPPAGE_FLOOR_PERCENT = 0.05
+const GUARANTEE_SAFETY_BUFFER_PERCENT = Number.parseFloat(process.env.TOP_ASSETS_GUARANTEE_BUFFER_PERCENT ?? "0.35")
+const GUARANTEE_MIN_COVERAGE = Number.parseInt(process.env.TOP_ASSETS_GUARANTEE_MIN_COVERAGE ?? "3", 10)
 
 const QUOTE_PRIORITY: Record<string, number> = {
   USDT: 0,
@@ -211,6 +213,8 @@ function rankAssetFromCandidates(
       latestPrice: 0,
       grossArbitragePercent: 0,
       netProfitPercent: -999,
+      guaranteedProfitPercent: -999,
+      guaranteedProfit: false,
       estimatedCostsPercent: 0,
       averageSpreadPercent: 0,
       score: -999,
@@ -260,12 +264,14 @@ function rankAssetFromCandidates(
   const avgSpread =
     candidates.reduce((acc, item) => acc + Math.max(0, item.spreadPercent), 0) / Math.max(1, candidates.length)
 
-  const score = bestNet + candidates.length * 0.35 - avgSpread * 0.35
+  const guaranteedProfitPercent = bestNet - GUARANTEE_SAFETY_BUFFER_PERCENT
+  const guaranteedProfit = guaranteedProfitPercent > 0 && candidates.length >= GUARANTEE_MIN_COVERAGE
+  const score = guaranteedProfitPercent + candidates.length * 0.35 - avgSpread * 0.35
 
   const reason =
-    bestNet > 0
-      ? `Lucro liquido estimado ${bestNet.toFixed(3)}% comprando em ${EXCHANGE_LABEL[bestBuy.exchange]} e vendendo em ${EXCHANGE_LABEL[bestSell.exchange]} apos custos.`
-      : `Melhor rota atual ${EXCHANGE_LABEL[bestBuy.exchange]} -> ${EXCHANGE_LABEL[bestSell.exchange]} ainda negativa (${bestNet.toFixed(3)}% liquido), com spread medio ${avgSpread.toFixed(4)}%.`
+    guaranteedProfit
+      ? `Lucro conservador ${guaranteedProfitPercent.toFixed(3)}% apos buffer de seguranca (${GUARANTEE_SAFETY_BUFFER_PERCENT.toFixed(3)}%), comprando em ${EXCHANGE_LABEL[bestBuy.exchange]} e vendendo em ${EXCHANGE_LABEL[bestSell.exchange]}.`
+      : `Sem lucro conservador garantido. Liquido estimado ${bestNet.toFixed(3)}% e conservador ${guaranteedProfitPercent.toFixed(3)}% com spread medio ${avgSpread.toFixed(4)}%.`
 
   return {
     id: symbol,
@@ -282,6 +288,8 @@ function rankAssetFromCandidates(
     latestPrice: bestSell.last,
     grossArbitragePercent: bestGross,
     netProfitPercent: bestNet,
+    guaranteedProfitPercent,
+    guaranteedProfit,
     estimatedCostsPercent: bestCosts,
     averageSpreadPercent: avgSpread,
     score,

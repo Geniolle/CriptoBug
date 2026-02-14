@@ -14,6 +14,8 @@ export interface RankedAsset {
   latestPrice: number
   grossArbitragePercent: number
   netProfitPercent: number
+  guaranteedProfitPercent: number
+  guaranteedProfit: boolean
   estimatedCostsPercent: number
   averageSpreadPercent: number
   score: number

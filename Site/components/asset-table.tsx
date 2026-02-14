@@ -78,10 +78,12 @@ export function AssetTable({ assets, selectedAssetId, onSelect }: AssetTableProp
                   </div>
 
                   <div className="text-right shrink-0">
-                    <div className={`text-sm font-mono font-bold ${asset.netProfitPercent >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                      {asset.available ? formatPercent(asset.netProfitPercent) : "N/A"}
+                    <div className={`text-sm font-mono font-bold ${asset.guaranteedProfitPercent >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                      {asset.available ? formatPercent(asset.guaranteedProfitPercent) : "N/A"}
                     </div>
-                    <div className="text-[11px] text-muted-foreground font-mono">{formatPrice(asset.latestPrice)}</div>
+                    <div className="text-[11px] text-muted-foreground font-mono">
+                      {asset.guaranteedProfit ? "Garantido" : "Conservador"} | {formatPrice(asset.latestPrice)}
+                    </div>
                   </div>
                 </div>
               </button>

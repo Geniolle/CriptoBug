@@ -1,0 +1,4 @@
+fastapi==0.115.8
+uvicorn[standard]==0.34.0
+ccxt==4.4.67
+Pillow==12.1.1

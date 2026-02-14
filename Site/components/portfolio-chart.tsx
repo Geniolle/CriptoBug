@@ -40,6 +40,11 @@ interface RemoteChartData {
   candles: ChartCandle[]
 }
 
+function toErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message
+  return "erro desconhecido"
+}
+
 function toChartTime(candle: ChartCandle, intraday: boolean): Time | null {
   if (intraday) {
     const utcSeconds = Math.floor(candle.timestamp / 1000)
@@ -184,19 +189,35 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
       destroyChart()
 
       try {
-        const { createChart, ColorType } = await import("lightweight-charts")
+        const chartsModule = await import("lightweight-charts")
+        const createChartFn =
+          chartsModule.createChart ??
+          (chartsModule as unknown as { default?: { createChart?: typeof chartsModule.createChart } }).default?.createChart
+
+        const colorType =
+          chartsModule.ColorType ??
+          (chartsModule as unknown as { default?: { ColorType?: typeof chartsModule.ColorType } }).default?.ColorType
+
+        if (!createChartFn) {
+          throw new Error("createChart indisponivel no pacote lightweight-charts")
+        }
+
+        if (colorType?.Solid === undefined) {
+          throw new Error("ColorType.Solid indisponivel no pacote lightweight-charts")
+        }
+
         if (cancelled || !chartContainerRef.current) return
 
         const container = chartContainerRef.current
         const width = Math.max(320, container.clientWidth)
         const height = Math.max(320, container.clientHeight)
 
-        const chart = createChart(container, {
+        const chart = createChartFn(container, {
           width,
           height,
           layout: {
-            background: { type: ColorType.Solid, color: "transparent" },
-            textColor: "hsl(0 0% 62%)",
+            background: { type: colorType.Solid, color: "transparent" },
+            textColor: "#9ca3af",
             fontFamily: "var(--font-space-mono), monospace",
           },
           grid: {
@@ -291,8 +312,9 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
         resizeObserverRef.current = resizeObserver
         setChartReady(true)
       } catch (renderError) {
+        const detail = toErrorMessage(renderError)
         console.error("Erro ao renderizar grafico:", renderError)
-        setError("Falha ao renderizar grafico no navegador.")
+        setError(`Falha ao renderizar grafico no navegador (${detail}).`)
       }
     }
 

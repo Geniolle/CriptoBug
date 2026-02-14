@@ -87,7 +87,7 @@ export function Navbar() {
               className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-sm font-medium tracking-wide uppercase disabled:opacity-60"
             >
               {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
-              Login Google
+              Login
             </button>
           )}
         </div>

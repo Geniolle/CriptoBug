@@ -1,6 +1,6 @@
 # IA Bot (separado do hooks)
 
-Este modulo roda separado da pasta `hooks`.
+Este modulo roda separado da pasta `hooks` e esta ajustado para analise de longo prazo.
 
 ## Rodar
 
@@ -29,6 +29,27 @@ curl -X POST "http://127.0.0.1:8010/webhook/decision" \
 
 O bot consulta:
 - dados de mercado via API do `hooks` (`HOOKS_BASE_URL`)
-- noticias (Google News)
+- noticias (Google News) por fonte especifica
 - variacao de preco (CoinGecko)
 - sentimento macro (Fear & Greed)
+
+Fontes consultadas:
+- Glassnode
+- CryptoQuant
+- IntoTheBlock
+- Santiment
+- Nansen
+- Standard Chartered
+- JPMorgan
+- Goldman Sachs
+- Fidelity Digital Assets
+- ARK Invest
+- Messari
+- CoinShares
+- Delphi Digital
+
+Retorno da API inclui:
+- `acao` (`BUY`, `SELL`, `HOLD`)
+- `motivos` detalhando porque comprar/vender/manter
+- `fontes_consultadas` com status por fonte (`ok`, `sem_resultado`, `erro`)
+- `horizonte` como `longo_prazo`

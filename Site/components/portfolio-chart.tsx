@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { gsap } from "gsap"
-import type { CandlestickData, HistogramData, IChartApi, ISeriesApi, Time } from "lightweight-charts"
+import type { BusinessDay, CandlestickData, HistogramData, IChartApi, ISeriesApi, Time } from "lightweight-charts"
 
 import type { RankedAsset } from "@/lib/types"
 
@@ -38,6 +38,25 @@ interface ChartCandle {
 interface RemoteChartData {
   timeframe: string
   candles: ChartCandle[]
+}
+
+function toChartTime(candle: ChartCandle, intraday: boolean): Time | null {
+  if (intraday) {
+    const utcSeconds = Math.floor(candle.timestamp / 1000)
+    return Number.isFinite(utcSeconds) ? (utcSeconds as Time) : null
+  }
+
+  const isoDate = candle.datetime_utc?.slice(0, 10)
+  const [yearStr, monthStr, dayStr] = isoDate.split("-")
+  const year = Number(yearStr)
+  const month = Number(monthStr)
+  const day = Number(dayStr)
+
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return null
+  }
+
+  return { year, month, day } as BusinessDay
 }
 
 function formatPrice(value: number): string {
@@ -218,19 +237,39 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
           borderVisible: false,
         })
 
-        const candleData: CandlestickData<Time>[] = candles.map((item) => ({
-          time: Math.floor(item.timestamp / 1000) as Time,
-          open: item.open,
-          high: item.high,
-          low: item.low,
-          close: item.close,
-        }))
+        const candleData: CandlestickData<Time>[] = []
+        const volumeData: HistogramData<Time>[] = []
+        const seenTimes = new Set<string>()
 
-        const volumeData: HistogramData<Time>[] = candles.map((item) => ({
-          time: Math.floor(item.timestamp / 1000) as Time,
-          value: item.volume,
-          color: item.close >= item.open ? "rgba(34, 197, 94, 0.45)" : "rgba(239, 68, 68, 0.45)",
-        }))
+        for (const item of candles) {
+          const time = toChartTime(item, isIntraday)
+          if (!time) continue
+
+          const timeKey = typeof time === "number" ? String(time) : `${time.year}-${time.month}-${time.day}`
+          if (seenTimes.has(timeKey)) continue
+          seenTimes.add(timeKey)
+
+          const high = Math.max(item.high, item.open, item.close)
+          const low = Math.min(item.low, item.open, item.close)
+
+          candleData.push({
+            time,
+            open: item.open,
+            high,
+            low,
+            close: item.close,
+          })
+
+          volumeData.push({
+            time,
+            value: item.volume,
+            color: item.close >= item.open ? "rgba(34, 197, 94, 0.45)" : "rgba(239, 68, 68, 0.45)",
+          })
+        }
+
+        if (candleData.length === 0) {
+          throw new Error("Nenhum candle valido para renderizacao")
+        }
 
         candleSeries.setData(candleData)
         volumeSeries.setData(volumeData)
@@ -251,7 +290,8 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
         volumeSeriesRef.current = volumeSeries
         resizeObserverRef.current = resizeObserver
         setChartReady(true)
-      } catch {
+      } catch (renderError) {
+        console.error("Erro ao renderizar grafico:", renderError)
         setError("Falha ao renderizar grafico no navegador.")
       }
     }

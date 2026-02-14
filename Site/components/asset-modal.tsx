@@ -12,14 +12,13 @@ interface AssetModalProps {
 }
 
 export function AssetModal({ asset, onClose }: AssetModalProps) {
-  const { getIdToken } = useAuth()
+  const { user, loginWithGoogle, getIdToken } = useAuth()
   const overlayRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const [decision, setDecision] = useState<DecisionPayload | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [tradeAmount, setTradeAmount] = useState<string>("")
-  const [tradeExchange, setTradeExchange] = useState<string>("")
   const [tradePending, setTradePending] = useState(false)
   const [tradeMessage, setTradeMessage] = useState<string | null>(null)
   const [linkedExchanges, setLinkedExchanges] = useState<string[]>([])
@@ -87,8 +86,6 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
         if (cancelled) return
 
         setLinkedExchanges(linked)
-        const preferred = [targetAsset.bestExchangeKey, targetAsset.buyExchangeKey, targetAsset.sellExchangeKey].find((x) => x && linked.includes(x))
-        setTradeExchange(preferred || linked[0] || "")
       } catch {
         // ignore
       }
@@ -129,6 +126,27 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
   const actionColor = action === "BUY" ? "text-emerald-400" : action === "SELL" ? "text-rose-400" : "text-amber-300"
   const recommendedSide = action === "BUY" || action === "SELL" ? action : null
 
+  const buyExchange = {
+    key: asset.buyExchangeKey || asset.bestExchangeKey,
+    label: asset.buyExchange || asset.bestExchange || asset.buyExchangeKey || asset.bestExchangeKey || "Sem dados",
+  }
+
+  const sellExchange = {
+    key: asset.sellExchangeKey || asset.bestExchangeKey,
+    label: asset.sellExchange || asset.bestExchange || asset.sellExchangeKey || asset.bestExchangeKey || "Sem dados",
+  }
+
+  const buyLinked = Boolean(buyExchange.key) && linkedExchanges.includes(buyExchange.key)
+  const sellLinked = Boolean(sellExchange.key) && linkedExchanges.includes(sellExchange.key)
+
+  function openApisAndClose() {
+    try {
+      window.dispatchEvent(new CustomEvent("cryptobug:open-profile", { detail: { tab: "apis" } }))
+    } finally {
+      onClose()
+    }
+  }
+
   async function submitTrade(side: "BUY" | "SELL") {
     setTradePending(true)
     setTradeMessage(null)
@@ -136,8 +154,13 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
 
     try {
       if (!asset) throw new Error("Ativo nao selecionado")
+      if (!user) throw new Error("Faca login para operar e vincular suas APIs.")
       if (!baseUrl) throw new Error("DB API nao configurada (NEXT_PUBLIC_DB_API_BASE_URL).")
-      if (!tradeExchange) throw new Error("Selecione uma exchange vinculada")
+      const ex = side === "BUY" ? buyExchange : sellExchange
+      if (!ex.key) throw new Error("Exchange recomendada indisponivel para este ativo.")
+      if (!linkedExchanges.includes(ex.key)) {
+        throw new Error(`Voce nao vinculou ${ex.label}. Abra Perfil > APIs e vincule para operar.`)
+      }
       const amount = Number.parseFloat(tradeAmount)
       if (!Number.isFinite(amount) || amount <= 0) throw new Error("Quantidade invalida")
 
@@ -151,7 +174,7 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          exchange: tradeExchange,
+          exchange: ex.key,
           symbol,
           side,
           orderType: "market",
@@ -247,21 +270,50 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                   <div className="md:col-span-1">
-                    <div className="text-[11px] text-muted-foreground mb-1">Exchange</div>
-                    <select
-                      value={tradeExchange}
-                      onChange={(e) => setTradeExchange(e.target.value)}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/50"
-                    >
-                      <option value="">Selecione...</option>
-                      {linkedExchanges.map((ex) => (
-                        <option key={ex} value={ex}>
-                          {ex}
-                        </option>
-                      ))}
-                    </select>
-                    {linkedExchanges.length === 0 ? (
-                      <div className="mt-1 text-[11px] text-rose-200">Nenhuma exchange vinculada. Abra Conta e vincule.</div>
+                    <div className="text-[11px] text-muted-foreground mb-1">Exchange (auto)</div>
+                    <div className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
+                      <div className={`flex items-center justify-between gap-2 ${recommendedSide === "BUY" ? "text-emerald-200" : "text-foreground"}`}>
+                        <span className="font-semibold">BUY</span>
+                        <span className="truncate">{buyExchange.label}</span>
+                        <span className={`text-[11px] ${buyLinked ? "text-emerald-300" : "text-rose-200"}`}>{buyLinked ? "Vinculada" : "Nao vinculada"}</span>
+                      </div>
+                      <div className={`mt-1 flex items-center justify-between gap-2 ${recommendedSide === "SELL" ? "text-rose-200" : "text-foreground"}`}>
+                        <span className="font-semibold">SELL</span>
+                        <span className="truncate">{sellExchange.label}</span>
+                        <span className={`text-[11px] ${sellLinked ? "text-emerald-300" : "text-rose-200"}`}>{sellLinked ? "Vinculada" : "Nao vinculada"}</span>
+                      </div>
+                    </div>
+
+                    {!user ? (
+                      <div className="mt-2 rounded-lg border border-amber-400/30 bg-amber-500/10 p-2 text-[11px] text-amber-100">
+                        Faca login para vincular APIs e operar.
+                        <button
+                          type="button"
+                          className="ml-2 underline underline-offset-2 hover:text-amber-50"
+                          onClick={() => {
+                            void loginWithGoogle().catch((e) => setError(e instanceof Error ? e.message : "Falha ao autenticar"))
+                          }}
+                        >
+                          Login com Google
+                        </button>
+                      </div>
+                    ) : linkedExchanges.length === 0 || (recommendedSide === "BUY" && !buyLinked) || (recommendedSide === "SELL" && !sellLinked) ? (
+                      <div className="mt-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-2 text-[11px] text-rose-100">
+                        {linkedExchanges.length === 0
+                          ? "Nenhuma exchange vinculada. Vincule suas APIs para habilitar BUY/SELL."
+                          : recommendedSide === "BUY"
+                            ? `BUY recomendado na ${buyExchange.label}. Vincule para operar.`
+                            : recommendedSide === "SELL"
+                              ? `SELL recomendado na ${sellExchange.label}. Vincule para operar.`
+                              : "Vincule a exchange recomendada para operar."}
+                        <button
+                          type="button"
+                          className="ml-2 underline underline-offset-2 hover:text-rose-50"
+                          onClick={openApisAndClose}
+                        >
+                          Abrir APIs
+                        </button>
+                      </div>
                     ) : null}
                   </div>
 
@@ -277,7 +329,7 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
 
                   <div className="md:col-span-1 flex items-end gap-2">
                     <button
-                      disabled={tradePending || linkedExchanges.length === 0}
+                      disabled={tradePending || !user || !buyLinked}
                       onClick={() => submitTrade("BUY")}
                       className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold border ${
                         recommendedSide === "BUY" ? "border-emerald-400/60 bg-emerald-500/20 text-emerald-200" : "border-border bg-secondary/40 text-foreground"
@@ -287,7 +339,7 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
                       BUY
                     </button>
                     <button
-                      disabled={tradePending || linkedExchanges.length === 0}
+                      disabled={tradePending || !user || !sellLinked}
                       onClick={() => submitTrade("SELL")}
                       className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold border ${
                         recommendedSide === "SELL" ? "border-rose-400/60 bg-rose-500/20 text-rose-200" : "border-border bg-secondary/40 text-foreground"

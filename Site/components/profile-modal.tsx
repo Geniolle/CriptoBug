@@ -10,10 +10,11 @@ type ProfileTab = "perfil" | "apis"
 
 interface ProfileModalProps {
   open: boolean
+  initialTab?: ProfileTab
   onClose: () => void
 }
 
-export function ProfileModal({ open, onClose }: ProfileModalProps) {
+export function ProfileModal({ open, initialTab, onClose }: ProfileModalProps) {
   const { user, logout } = useAuth()
   const [tab, setTab] = useState<ProfileTab>("perfil")
   const [pending, setPending] = useState(false)
@@ -26,10 +27,10 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
 
   useEffect(() => {
     if (!open) return
-    setTab("perfil")
+    setTab(initialTab ?? "perfil")
     setError(null)
     setPending(false)
-  }, [open])
+  }, [open, initialTab])
 
   useEffect(() => {
     if (!open) return

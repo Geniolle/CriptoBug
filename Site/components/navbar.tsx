@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Bug, LogIn, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -13,6 +13,7 @@ export function Navbar() {
   const [pending, setPending] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [profileInitialTab, setProfileInitialTab] = useState<"perfil" | "apis">("perfil")
   const pathname = usePathname()
 
   const navItems = [
@@ -20,6 +21,25 @@ export function Navbar() {
     { href: "/ongoing", label: "Em andamento" },
     { href: "/history", label: "Historico" },
   ] as const
+
+  useEffect(() => {
+    function onOpenProfile(event: Event) {
+      const detail = (event as CustomEvent<{ tab?: "perfil" | "apis" }>).detail
+      const nextTab = detail?.tab === "apis" ? "apis" : "perfil"
+
+      if (!user) {
+        setAuthError("Faça login para acessar Perfil/APIs.")
+        return
+      }
+
+      setAuthError(null)
+      setProfileInitialTab(nextTab)
+      setProfileOpen(true)
+    }
+
+    window.addEventListener("cryptobug:open-profile", onOpenProfile as EventListener)
+    return () => window.removeEventListener("cryptobug:open-profile", onOpenProfile as EventListener)
+  }, [user])
 
   async function handleLogin() {
     setPending(true)
@@ -37,7 +57,7 @@ export function Navbar() {
   return (
     <nav className="px-6 py-4 bg-card border-b border-border">
       <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4 min-w-0">
+        <div className="flex items-center gap-4 min-w-0 flex-1">
           <div className="flex items-center gap-2.5 shrink-0">
             <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
               <Bug className="h-5 w-5 text-primary-foreground" />
@@ -47,7 +67,7 @@ export function Navbar() {
             </span>
           </div>
 
-          <div className="hidden md:flex items-center gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap min-w-0 flex-1">
             {navItems.map((item) => {
               const active = pathname === item.href
               return (
@@ -69,34 +89,26 @@ export function Navbar() {
           {user ? (
             <button
               type="button"
-              onClick={() => setProfileOpen(true)}
-              className="hidden md:flex items-center gap-2 rounded-lg border border-border bg-background/60 px-3 py-1.5 hover:bg-secondary/60 transition-colors"
+              onClick={() => {
+                setProfileInitialTab("perfil")
+                setProfileOpen(true)
+              }}
+              className="flex items-center gap-2 rounded-lg border border-border bg-background/60 px-3 py-1.5 hover:bg-secondary/60 transition-colors shrink-0"
             >
               {user.photoURL ? (
                 <img src={user.photoURL} alt={user.displayName ?? "Avatar"} className="h-7 w-7 rounded-full" />
               ) : (
                 <div className="h-7 w-7 rounded-full bg-primary/20 border border-primary/25" />
               )}
-              <div className="leading-tight">
+              <div className="leading-tight hidden sm:block">
                 <div className="text-xs text-foreground font-semibold">{user.displayName ?? "Usuario"}</div>
-                <div className="text-[11px] text-muted-foreground">{user.email}</div>
+                <div className="text-[11px] text-muted-foreground hidden md:block">{user.email}</div>
               </div>
             </button>
           ) : null}
         </div>
 
         <div className="flex items-center gap-3">
-
-          {user ? (
-            <button
-              type="button"
-              onClick={() => setProfileOpen(true)}
-              className="md:hidden rounded-lg border border-border bg-background/60 px-3 py-2 text-xs font-semibold text-foreground"
-            >
-              Perfil
-            </button>
-          ) : null}
-
           {loading ? (
             <button
               disabled
@@ -120,7 +132,7 @@ export function Navbar() {
 
       {authError ? <p className="text-xs text-rose-300 mt-2">{authError}</p> : null}
 
-      <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+      <ProfileModal open={profileOpen} initialTab={profileInitialTab} onClose={() => setProfileOpen(false)} />
     </nav>
   )
 }

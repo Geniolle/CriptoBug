@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { X } from "lucide-react"
 
-import { AccountConnectionsModal } from "@/components/account-connections-modal"
+import { AccountConnectionsPanel } from "@/components/account-connections-modal"
 import { useAuth } from "@/components/auth-provider"
 
 type ProfileTab = "perfil" | "apis"
@@ -16,7 +16,6 @@ interface ProfileModalProps {
 export function ProfileModal({ open, onClose }: ProfileModalProps) {
   const { user, logout } = useAuth()
   const [tab, setTab] = useState<ProfileTab>("perfil")
-  const [connectionsOpen, setConnectionsOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -61,23 +60,17 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
     }
   }
 
-  function openApis() {
-    setTab("apis")
-    setConnectionsOpen(true)
-  }
-
   return (
-    <>
-      <div
-        ref={overlayRef}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        onClick={(event) => {
-          if (event.target === overlayRef.current) onClose()
-        }}
-      >
-        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      onClick={(event) => {
+        if (event.target === overlayRef.current) onClose()
+      }}
+    >
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
-        <div className="relative z-10 w-full max-w-xl rounded-2xl border border-border bg-card shadow-2xl">
+      <div className="relative z-10 w-full max-w-4xl max-h-[85vh] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
           <div className="flex items-start justify-between gap-4 border-b border-border p-5">
             <div className="flex items-center gap-3 min-w-0">
               {user.photoURL ? (
@@ -101,7 +94,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
             </button>
           </div>
 
-          <div className="p-5">
+          <div className="p-5 overflow-auto">
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -116,7 +109,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
               </button>
               <button
                 type="button"
-                onClick={openApis}
+                onClick={() => setTab("apis")}
                 className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-colors ${
                   tab === "apis"
                     ? "border-primary/50 bg-primary/15 text-primary"
@@ -148,24 +141,17 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                 </button>
               </div>
             ) : (
-              <div className="mt-4 rounded-xl border border-border bg-background/30 p-4">
-                <div className="text-sm text-foreground font-semibold">APIs</div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  Abrindo configuracao de exchanges...
+              <div className="mt-4">
+                <div className="rounded-xl border border-border bg-background/30 p-4">
+                  <div className="text-sm text-foreground font-semibold">APIs</div>
+                  <div className="mt-1 text-xs text-muted-foreground">Vincule suas exchanges para habilitar BUY/SELL e historico.</div>
                 </div>
+
+                <AccountConnectionsPanel userEmail={email} enabled={open && tab === "apis"} />
               </div>
             )}
           </div>
         </div>
-      </div>
-
-      <AccountConnectionsModal
-        open={connectionsOpen}
-        userName={displayName}
-        userEmail={email}
-        onClose={() => setConnectionsOpen(false)}
-      />
-    </>
+    </div>
   )
 }
-

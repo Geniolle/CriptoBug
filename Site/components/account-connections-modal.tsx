@@ -5,7 +5,7 @@ import { X } from "lucide-react"
 
 import { useAuth } from "@/components/auth-provider"
 
-type ExchangeKey = "binance" | "kraken" | "okx" | "bybit"
+export type ExchangeKey = "binance" | "kraken" | "okx" | "bybit"
 
 interface ExchangeConnection {
   apiKey: string
@@ -14,6 +14,7 @@ interface ExchangeConnection {
 }
 
 type ConnectionsState = Record<ExchangeKey, ExchangeConnection>
+type LinkedState = Record<ExchangeKey, { linked: boolean; apiKeyHint: string; hasPassphrase: boolean }>
 
 interface AccountConnectionsModalProps {
   open: boolean
@@ -38,27 +39,30 @@ function emptyConnections(): ConnectionsState {
   }
 }
 
-export function AccountConnectionsModal({ open, userName, userEmail, onClose }: AccountConnectionsModalProps) {
+function emptyLinked(): LinkedState {
+  return {
+    binance: { linked: false, apiKeyHint: "", hasPassphrase: false },
+    kraken: { linked: false, apiKeyHint: "", hasPassphrase: false },
+    okx: { linked: false, apiKeyHint: "", hasPassphrase: false },
+    bybit: { linked: false, apiKeyHint: "", hasPassphrase: false },
+  }
+}
+
+function useAccountConnections(options: { userEmail: string; enabled: boolean }) {
   const { getIdToken } = useAuth()
   const [connections, setConnections] = useState<ConnectionsState>(emptyConnections())
   const [savedMessage, setSavedMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [linked, setLinked] = useState<Record<ExchangeKey, { linked: boolean; apiKeyHint: string; hasPassphrase: boolean }>>({
-    binance: { linked: false, apiKeyHint: "", hasPassphrase: false },
-    kraken: { linked: false, apiKeyHint: "", hasPassphrase: false },
-    okx: { linked: false, apiKeyHint: "", hasPassphrase: false },
-    bybit: { linked: false, apiKeyHint: "", hasPassphrase: false },
-  })
+  const [linked, setLinked] = useState<LinkedState>(emptyLinked())
 
-  const _userKey = useMemo(() => userEmail.toLowerCase(), [userEmail])
   const baseUrl = useMemo(() => {
     const raw = process.env.NEXT_PUBLIC_DB_API_BASE_URL ?? ""
     return raw.replace(/\/+$/, "")
   }, [])
 
   useEffect(() => {
-    if (!open) return
+    if (!options.enabled) return
     let cancelled = false
 
     async function loadStatus() {
@@ -86,12 +90,7 @@ export function AccountConnectionsModal({ open, userName, userEmail, onClose }: 
           throw new Error(payload?.error || "Falha ao carregar conexoes")
         }
 
-        const next = {
-          binance: { linked: false, apiKeyHint: "", hasPassphrase: false },
-          kraken: { linked: false, apiKeyHint: "", hasPassphrase: false },
-          okx: { linked: false, apiKeyHint: "", hasPassphrase: false },
-          bybit: { linked: false, apiKeyHint: "", hasPassphrase: false },
-        }
+        const next = emptyLinked()
 
         for (const item of payload.connections ?? []) {
           next[item.exchange] = {
@@ -113,15 +112,13 @@ export function AccountConnectionsModal({ open, userName, userEmail, onClose }: 
     return () => {
       cancelled = true
     }
-  }, [open, getIdToken, baseUrl])
+  }, [options.enabled, options.userEmail, getIdToken, baseUrl])
 
   useEffect(() => {
     if (!savedMessage) return
     const timer = setTimeout(() => setSavedMessage(null), 2400)
     return () => clearTimeout(timer)
   }, [savedMessage])
-
-  if (!open) return null
 
   function updateField(exchange: ExchangeKey, field: keyof ExchangeConnection, value: string) {
     setConnections((prev) => ({
@@ -212,12 +209,7 @@ export function AccountConnectionsModal({ open, userName, userEmail, onClose }: 
           })
         }
         setSavedMessage("Conexoes removidas do servidor.")
-        setLinked({
-          binance: { linked: false, apiKeyHint: "", hasPassphrase: false },
-          kraken: { linked: false, apiKeyHint: "", hasPassphrase: false },
-          okx: { linked: false, apiKeyHint: "", hasPassphrase: false },
-          bybit: { linked: false, apiKeyHint: "", hasPassphrase: false },
-        })
+        setLinked(emptyLinked())
       } else {
         const response = await fetch(`${baseUrl}/account/connections?exchange=${encodeURIComponent(exchange)}`, {
           method: "DELETE",
@@ -237,6 +229,125 @@ export function AccountConnectionsModal({ open, userName, userEmail, onClose }: 
       setLoading(false)
     }
   }
+
+  return {
+    connections,
+    linked,
+    loading,
+    error,
+    savedMessage,
+    updateField,
+    handleSave,
+    handleClear,
+  }
+}
+
+export function AccountConnectionsPanel({ userEmail, enabled = true }: { userEmail: string; enabled?: boolean }) {
+  const { connections, linked, loading, error, savedMessage, updateField, handleSave, handleClear } = useAccountConnections({
+    userEmail,
+    enabled,
+  })
+
+  return (
+    <div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {EXCHANGES.map((exchange) => {
+          const values = connections[exchange.key]
+          const isLinked = linked[exchange.key].linked
+
+          return (
+            <div key={exchange.key} className="rounded-xl border border-border bg-background/30 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="font-semibold text-foreground">{exchange.label}</h3>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                    isLinked ? "bg-emerald-500/20 text-emerald-300" : "bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  {isLinked ? "Vinculada" : "Nao vinculada"}
+                </span>
+              </div>
+
+              {linked[exchange.key].apiKeyHint ? (
+                <div className="mb-3 text-[11px] text-muted-foreground font-mono">API Key: {linked[exchange.key].apiKeyHint}</div>
+              ) : (
+                <div className="mb-3 text-[11px] text-muted-foreground">Nenhuma chave salva.</div>
+              )}
+
+              <div className="space-y-2.5">
+                <input
+                  value={values.apiKey}
+                  onChange={(event) => updateField(exchange.key, "apiKey", event.target.value)}
+                  placeholder="API Key"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/50"
+                />
+                <input
+                  value={values.apiSecret}
+                  onChange={(event) => updateField(exchange.key, "apiSecret", event.target.value)}
+                  placeholder="API Secret"
+                  type="password"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/50"
+                />
+                {exchange.needsPassphrase ? (
+                  <input
+                    value={values.passphrase}
+                    onChange={(event) => updateField(exchange.key, "passphrase", event.target.value)}
+                    placeholder="Passphrase"
+                    type="password"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/50"
+                  />
+                ) : null}
+              </div>
+
+              <div className="mt-3 flex items-center justify-end gap-2">
+                {isLinked ? (
+                  <button
+                    onClick={() => handleClear(exchange.key)}
+                    type="button"
+                    disabled={loading}
+                    className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-60"
+                  >
+                    Remover
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-4">
+        <div className="text-xs text-muted-foreground">
+          <div>As chaves sao criptografadas no servidor antes de salvar no Postgres.</div>
+          {error ? <div className="mt-1 text-rose-200">Erro: {error}</div> : null}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {savedMessage ? <span className="text-xs text-emerald-300">{savedMessage}</span> : null}
+          <button
+            onClick={() => handleClear()}
+            type="button"
+            disabled={loading}
+            className="rounded-lg border border-border bg-secondary/50 px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
+          >
+            Limpar
+          </button>
+          <button
+            onClick={handleSave}
+            type="button"
+            disabled={loading}
+            className="rounded-lg border border-primary/40 bg-primary/20 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/30"
+          >
+            {loading ? "Salvando..." : "Salvar configuracoes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function AccountConnectionsModal({ open, userName, userEmail, onClose }: AccountConnectionsModalProps) {
+  if (!open) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -263,99 +374,8 @@ export function AccountConnectionsModal({ open, userName, userEmail, onClose }: 
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-          {EXCHANGES.map((exchange) => {
-            const values = connections[exchange.key]
-            const isLinked = linked[exchange.key].linked
-
-            return (
-              <div key={exchange.key} className="rounded-xl border border-border bg-background/30 p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="font-semibold text-foreground">{exchange.label}</h3>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                      isLinked ? "bg-emerald-500/20 text-emerald-300" : "bg-secondary text-muted-foreground"
-                    }`}
-                  >
-                    {isLinked ? "Vinculada" : "Nao vinculada"}
-                  </span>
-                </div>
-
-                {linked[exchange.key].apiKeyHint ? (
-                  <div className="mb-3 text-[11px] text-muted-foreground font-mono">
-                    API Key: {linked[exchange.key].apiKeyHint}
-                  </div>
-                ) : (
-                  <div className="mb-3 text-[11px] text-muted-foreground">Nenhuma chave salva.</div>
-                )}
-
-                <div className="space-y-2.5">
-                  <input
-                    value={values.apiKey}
-                    onChange={(event) => updateField(exchange.key, "apiKey", event.target.value)}
-                    placeholder="API Key"
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/50"
-                  />
-                  <input
-                    value={values.apiSecret}
-                    onChange={(event) => updateField(exchange.key, "apiSecret", event.target.value)}
-                    placeholder="API Secret"
-                    type="password"
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/50"
-                  />
-                  {exchange.needsPassphrase ? (
-                    <input
-                      value={values.passphrase}
-                      onChange={(event) => updateField(exchange.key, "passphrase", event.target.value)}
-                      placeholder="Passphrase"
-                      type="password"
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/50"
-                    />
-                  ) : null}
-                </div>
-
-                <div className="mt-3 flex items-center justify-end gap-2">
-                  {isLinked ? (
-                    <button
-                      onClick={() => handleClear(exchange.key)}
-                      type="button"
-                      disabled={loading}
-                      className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-60"
-                    >
-                      Remover
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-
-        <div className="flex items-center justify-between gap-3 border-t border-border p-5">
-          <div className="text-xs text-muted-foreground">
-            <div>As chaves sao criptografadas no servidor antes de salvar no Postgres.</div>
-            {error ? <div className="mt-1 text-rose-200">Erro: {error}</div> : null}
-          </div>
-
-          <div className="flex items-center gap-2">
-            {savedMessage ? <span className="text-xs text-emerald-300">{savedMessage}</span> : null}
-            <button
-              onClick={() => handleClear()}
-              type="button"
-              disabled={loading}
-              className="rounded-lg border border-border bg-secondary/50 px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
-            >
-              Limpar
-            </button>
-            <button
-              onClick={handleSave}
-              type="button"
-              disabled={loading}
-              className="rounded-lg border border-primary/40 bg-primary/20 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/30"
-            >
-              {loading ? "Salvando..." : "Salvar configuracoes"}
-            </button>
-          </div>
+        <div className="p-5">
+          <AccountConnectionsPanel userEmail={userEmail} enabled={open} />
         </div>
       </div>
     </div>

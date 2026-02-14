@@ -28,6 +28,7 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
 
   useEffect(() => {
     if (!asset) return
+    const targetAsset = asset
 
     const controller = new AbortController()
 
@@ -38,7 +39,7 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
 
       try {
         const response = await fetch(
-          `/api/decision?exchange=${encodeURIComponent(asset.bestExchangeKey)}&symbol=${encodeURIComponent(asset.symbol)}&quote_asset=${encodeURIComponent(asset.quoteAsset)}`,
+          `/api/decision?exchange=${encodeURIComponent(targetAsset.bestExchangeKey)}&symbol=${encodeURIComponent(targetAsset.symbol)}&quote_asset=${encodeURIComponent(targetAsset.quoteAsset)}`,
           {
             signal: controller.signal,
             cache: "no-store",
@@ -68,6 +69,7 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
 
   useEffect(() => {
     if (!asset) return
+    const targetAsset = asset
     let cancelled = false
 
     async function loadLinked() {
@@ -85,7 +87,7 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
         if (cancelled) return
 
         setLinkedExchanges(linked)
-        const preferred = [asset.bestExchangeKey, asset.buyExchangeKey, asset.sellExchangeKey].find((x) => x && linked.includes(x))
+        const preferred = [targetAsset.bestExchangeKey, targetAsset.buyExchangeKey, targetAsset.sellExchangeKey].find((x) => x && linked.includes(x))
         setTradeExchange(preferred || linked[0] || "")
       } catch {
         // ignore
@@ -133,6 +135,7 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
     setError(null)
 
     try {
+      if (!asset) throw new Error("Ativo nao selecionado")
       if (!baseUrl) throw new Error("DB API nao configurada (NEXT_PUBLIC_DB_API_BASE_URL).")
       if (!tradeExchange) throw new Error("Selecione uma exchange vinculada")
       const amount = Number.parseFloat(tradeAmount)
@@ -199,7 +202,7 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
 
           {error ? (
             <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-200">
-              Falha ao consultar IA: {error}
+              Erro: {error}
             </div>
           ) : null}
 

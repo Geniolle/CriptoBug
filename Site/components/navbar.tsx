@@ -37,35 +37,35 @@ export function Navbar() {
   return (
     <nav className="px-6 py-4 bg-card border-b border-border">
       <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
-            <Bug className="h-5 w-5 text-primary-foreground" />
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="flex items-center gap-2.5 shrink-0">
+            <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
+              <Bug className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <span className="text-foreground font-bold text-lg tracking-tight">
+              Crypto<span className="text-primary">Bug</span>
+            </span>
           </div>
-          <span className="text-foreground font-bold text-lg tracking-tight">
-            Crypto<span className="text-primary">Bug</span>
-          </span>
-        </div>
 
-        <div className="hidden md:flex items-center gap-2">
-          {navItems.map((item) => {
-            const active = pathname === item.href
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-colors ${
-                  active
-                    ? "border-primary/50 bg-primary/15 text-primary"
-                    : "border-border bg-background/50 text-muted-foreground hover:text-foreground hover:bg-secondary/60"
-                }`}
-              >
-                {item.label}
-              </Link>
-            )
-          })}
-        </div>
+          <div className="hidden md:flex items-center gap-2">
+            {navItems.map((item) => {
+              const active = pathname === item.href
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-colors ${
+                    active
+                      ? "border-primary/50 bg-primary/15 text-primary"
+                      : "border-border bg-background/50 text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              )
+            })}
+          </div>
 
-        <div className="flex items-center gap-3">
           {user ? (
             <button
               type="button"
@@ -83,6 +83,9 @@ export function Navbar() {
               </div>
             </button>
           ) : null}
+        </div>
+
+        <div className="flex items-center gap-3">
 
           {user ? (
             <button
@@ -102,7 +105,7 @@ export function Navbar() {
               <Loader2 className="h-4 w-4 animate-spin" />
               Carregando
             </button>
-          ) : (
+          ) : !user ? (
             <button
               onClick={handleLogin}
               disabled={pending}
@@ -111,7 +114,7 @@ export function Navbar() {
               {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
               Login
             </button>
-          )}
+          ) : null}
         </div>
       </div>
 

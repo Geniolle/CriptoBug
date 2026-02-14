@@ -337,7 +337,12 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
       const time = toChartTime(item, isIntraday)
       if (!time) continue
 
-      const timeKey = typeof time === "number" ? String(time) : `${time.year}-${time.month}-${time.day}`
+      const timeKey =
+        typeof time === "number"
+          ? String(time)
+          : typeof time === "string"
+            ? time
+            : `${time.year}-${time.month}-${time.day}`
       if (seenTimes.has(timeKey)) continue
       seenTimes.add(timeKey)
 

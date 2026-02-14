@@ -22,4 +22,5 @@ Serviço separado para armazenar credenciais de exchanges por usuário (Firebase
 
 ## Schema
 
-Execute `schema.sql` no seu Postgres para criar as tabelas.
+O servico executa migracoes automaticamente no startup (cria tabelas/indices se nao existirem).
+`schema.sql` continua disponivel como referencia.

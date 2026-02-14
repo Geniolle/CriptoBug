@@ -8,6 +8,7 @@ import { getFirebaseAdminAuth } from "./firebaseAdmin.js"
 import { deleteExchangeCredential, getExchangeCredentials, type ExchangeKey, upsertExchangeCredential } from "./repository.js"
 import { insertTradeAction, listTradeActions, updateTradeAction } from "./tradeRepository.js"
 import { placeOrder } from "./trading.js"
+import { runMigrations } from "./migrate.js"
 
 const app = Fastify({ logger: true })
 
@@ -210,5 +211,8 @@ requireEnv("SECRETS_ENCRYPTION_KEY")
 requireEnv("FIREBASE_PROJECT_ID")
 requireEnv("FIREBASE_CLIENT_EMAIL")
 requireEnv("FIREBASE_PRIVATE_KEY")
+
+// Ensure schema exists.
+await runMigrations()
 
 await app.listen({ port, host: "0.0.0.0" })

@@ -1,17 +1,25 @@
 "use client"
 
 import { useState } from "react"
-import { Bug, LogIn, LogOut, Loader2 } from "lucide-react"
+import { Bug, LogIn, Loader2 } from "lucide-react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 
-import { AccountConnectionsModal } from "@/components/account-connections-modal"
+import { ProfileModal } from "@/components/profile-modal"
 import { useAuth } from "@/components/auth-provider"
 
 export function Navbar() {
-  const { user, loading, loginWithGoogle, logout } = useAuth()
+  const { user, loading, loginWithGoogle } = useAuth()
   const [pending, setPending] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
-  const [connectionsOpen, setConnectionsOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const pathname = usePathname()
+
+  const navItems = [
+    { href: "/", label: "Analistica" },
+    { href: "/ongoing", label: "Em andamento" },
+    { href: "/history", label: "Historico" },
+  ] as const
 
   async function handleLogin() {
     setPending(true)
@@ -20,19 +28,6 @@ export function Navbar() {
       await loginWithGoogle()
     } catch (error) {
       const message = error instanceof Error ? error.message : "Falha ao autenticar com Google."
-      setAuthError(message)
-    } finally {
-      setPending(false)
-    }
-  }
-
-  async function handleLogout() {
-    setPending(true)
-    setAuthError(null)
-    try {
-      await logout()
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Falha ao sair."
       setAuthError(message)
     } finally {
       setPending(false)
@@ -51,19 +46,30 @@ export function Navbar() {
           </span>
         </div>
 
+        <div className="hidden md:flex items-center gap-2">
+          {navItems.map((item) => {
+            const active = pathname === item.href
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-colors ${
+                  active
+                    ? "border-primary/50 bg-primary/15 text-primary"
+                    : "border-border bg-background/50 text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                }`}
+              >
+                {item.label}
+              </Link>
+            )
+          })}
+        </div>
+
         <div className="flex items-center gap-3">
-          {user ? (
-            <Link
-              href="/history"
-              className="hidden md:inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-background/60 text-foreground text-xs font-semibold hover:bg-secondary/60 transition-colors"
-            >
-              Historico
-            </Link>
-          ) : null}
           {user ? (
             <button
               type="button"
-              onClick={() => setConnectionsOpen(true)}
+              onClick={() => setProfileOpen(true)}
               className="hidden md:flex items-center gap-2 rounded-lg border border-border bg-background/60 px-3 py-1.5 hover:bg-secondary/60 transition-colors"
             >
               {user.photoURL ? (
@@ -81,10 +87,10 @@ export function Navbar() {
           {user ? (
             <button
               type="button"
-              onClick={() => setConnectionsOpen(true)}
+              onClick={() => setProfileOpen(true)}
               className="md:hidden rounded-lg border border-border bg-background/60 px-3 py-2 text-xs font-semibold text-foreground"
             >
-              Conta
+              Perfil
             </button>
           ) : null}
 
@@ -95,15 +101,6 @@ export function Navbar() {
             >
               <Loader2 className="h-4 w-4 animate-spin" />
               Carregando
-            </button>
-          ) : user ? (
-            <button
-              onClick={handleLogout}
-              disabled={pending}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 transition-colors text-sm font-medium tracking-wide uppercase disabled:opacity-60"
-            >
-              {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-              Sair
             </button>
           ) : (
             <button
@@ -120,14 +117,7 @@ export function Navbar() {
 
       {authError ? <p className="text-xs text-rose-300 mt-2">{authError}</p> : null}
 
-      {user ? (
-        <AccountConnectionsModal
-          open={connectionsOpen}
-          userName={user.displayName ?? "Usuario"}
-          userEmail={user.email ?? "sem-email"}
-          onClose={() => setConnectionsOpen(false)}
-        />
-      ) : null}
+      <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
     </nav>
   )
 }

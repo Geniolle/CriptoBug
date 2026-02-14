@@ -3,12 +3,14 @@
 import { useState } from "react"
 import { Bug, LogIn, LogOut, Loader2 } from "lucide-react"
 
+import { AccountConnectionsModal } from "@/components/account-connections-modal"
 import { useAuth } from "@/components/auth-provider"
 
 export function Navbar() {
   const { user, loading, loginWithGoogle, logout } = useAuth()
   const [pending, setPending] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
+  const [connectionsOpen, setConnectionsOpen] = useState(false)
 
   async function handleLogin() {
     setPending(true)
@@ -50,7 +52,11 @@ export function Navbar() {
 
         <div className="flex items-center gap-3">
           {user ? (
-            <div className="hidden md:flex items-center gap-2 rounded-lg border border-border bg-background/60 px-3 py-1.5">
+            <button
+              type="button"
+              onClick={() => setConnectionsOpen(true)}
+              className="hidden md:flex items-center gap-2 rounded-lg border border-border bg-background/60 px-3 py-1.5 hover:bg-secondary/60 transition-colors"
+            >
               {user.photoURL ? (
                 <img src={user.photoURL} alt={user.displayName ?? "Avatar"} className="h-7 w-7 rounded-full" />
               ) : (
@@ -60,7 +66,17 @@ export function Navbar() {
                 <div className="text-xs text-foreground font-semibold">{user.displayName ?? "Usuario"}</div>
                 <div className="text-[11px] text-muted-foreground">{user.email}</div>
               </div>
-            </div>
+            </button>
+          ) : null}
+
+          {user ? (
+            <button
+              type="button"
+              onClick={() => setConnectionsOpen(true)}
+              className="md:hidden rounded-lg border border-border bg-background/60 px-3 py-2 text-xs font-semibold text-foreground"
+            >
+              Conta
+            </button>
           ) : null}
 
           {loading ? (
@@ -94,6 +110,15 @@ export function Navbar() {
       </div>
 
       {authError ? <p className="text-xs text-rose-300 mt-2">{authError}</p> : null}
+
+      {user ? (
+        <AccountConnectionsModal
+          open={connectionsOpen}
+          userName={user.displayName ?? "Usuario"}
+          userEmail={user.email ?? "sem-email"}
+          onClose={() => setConnectionsOpen(false)}
+        />
+      ) : null}
     </nav>
   )
 }

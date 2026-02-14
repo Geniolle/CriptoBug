@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { gsap } from "gsap"
+import type { CandlestickData, HistogramData, IChartApi, ISeriesApi, Time } from "lightweight-charts"
 
 import type { RankedAsset } from "@/lib/types"
 
@@ -28,19 +28,16 @@ interface PortfolioChartProps {
 interface ChartCandle {
   timestamp: number
   datetime_utc: string
+  open: number
+  high: number
+  low: number
   close: number
+  volume: number
 }
 
 interface RemoteChartData {
   timeframe: string
   candles: ChartCandle[]
-}
-
-interface ChartPoint {
-  timestamp: number
-  label: string
-  fullLabel: string
-  close: number
 }
 
 function formatPrice(value: number): string {
@@ -57,50 +54,47 @@ function formatPercent(value: number): string {
   return `${signal}${value.toFixed(3)}%`
 }
 
-function formatAxisLabel(timestamp: number, period: string): string {
-  const date = new Date(timestamp)
-  if (["1minuto", "5minutos", "30minutos", "hr"].includes(period)) {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  }
-  if (["dia", "semana", "mes"].includes(period)) {
-    return date.toLocaleDateString([], { day: "2-digit", month: "2-digit" })
-  }
-  return date.toLocaleDateString([], { month: "short", year: "2-digit" })
-}
-
-function formatFullLabel(timestamp: number): string {
-  return new Date(timestamp).toLocaleString()
-}
-
-function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ChartPoint }> }) {
-  if (!active || !payload || payload.length === 0) {
-    return null
-  }
-
-  const point = payload[0].payload
-  return (
-    <div className="rounded-xl border border-border bg-card px-4 py-3 shadow-xl shadow-black/40">
-      <p className="text-muted-foreground text-xs mb-1">{point.fullLabel}</p>
-      <p className="text-foreground font-bold text-base font-mono">{formatPrice(point.close)}</p>
-    </div>
-  )
-}
-
 export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChartProps) {
-  const [data, setData] = useState<ChartPoint[]>([])
+  const [candles, setCandles] = useState<ChartCandle[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [chartReady, setChartReady] = useState(false)
 
   const headerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<HTMLDivElement>(null)
+  const chartContainerRef = useRef<HTMLDivElement>(null)
+  const chartApiRef = useRef<IChartApi | null>(null)
+  const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
+  const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null)
+  const resizeObserverRef = useRef<ResizeObserver | null>(null)
 
-  const latestPoint = useMemo(() => (data.length > 0 ? data[data.length - 1] : null), [data])
+  const latestPoint = useMemo(() => (candles.length > 0 ? candles[candles.length - 1] : null), [candles])
+
+  const latestVariation = useMemo(() => {
+    if (!latestPoint || latestPoint.open <= 0) return 0
+    return ((latestPoint.close - latestPoint.open) / latestPoint.open) * 100
+  }, [latestPoint])
+
+  const isIntraday = useMemo(() => ["1minuto", "5minutos", "30minutos", "hr"].includes(period), [period])
+
+  function destroyChart() {
+    if (resizeObserverRef.current) {
+      resizeObserverRef.current.disconnect()
+      resizeObserverRef.current = null
+    }
+    chartApiRef.current?.remove()
+    chartApiRef.current = null
+    candleSeriesRef.current = null
+    volumeSeriesRef.current = null
+    setChartReady(false)
+  }
 
   useEffect(() => {
     if (!asset) {
-      setData([])
+      setCandles([])
       return
     }
+    const targetAsset = asset
 
     const controller = new AbortController()
 
@@ -110,7 +104,7 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
 
       try {
         const response = await fetch(
-          `/api/chart-data?coin=${encodeURIComponent(asset.symbol)}&period=${encodeURIComponent(period)}&exchange=${encodeURIComponent(asset.bestExchangeKey || "binance")}&quote=${encodeURIComponent(asset.quoteAsset)}`,
+          `/api/chart-data?coin=${encodeURIComponent(targetAsset.symbol)}&period=${encodeURIComponent(period)}&exchange=${encodeURIComponent(targetAsset.bestExchangeKey || "binance")}&quote=${encodeURIComponent(targetAsset.quoteAsset)}`,
           {
             cache: "no-store",
             signal: controller.signal,
@@ -123,21 +117,33 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
           throw new Error(payload?.error || "Falha ao carregar grafico")
         }
 
-        const candles = Array.isArray(payload.candles) ? payload.candles : []
-        const mapped = candles
-          .filter((c) => Number.isFinite(c.close) && Number.isFinite(c.timestamp))
+        const incomingCandles = Array.isArray(payload.candles) ? payload.candles : []
+        const mapped = incomingCandles
           .map((c) => ({
-            timestamp: c.timestamp,
-            label: formatAxisLabel(c.timestamp, period),
-            fullLabel: formatFullLabel(c.timestamp),
-            close: c.close,
+            timestamp: Number(c.timestamp),
+            datetime_utc: c.datetime_utc,
+            open: Number(c.open),
+            high: Number(c.high),
+            low: Number(c.low),
+            close: Number(c.close),
+            volume: Number(c.volume),
           }))
+          .filter(
+            (c) =>
+              Number.isFinite(c.timestamp) &&
+              Number.isFinite(c.open) &&
+              Number.isFinite(c.high) &&
+              Number.isFinite(c.low) &&
+              Number.isFinite(c.close) &&
+              Number.isFinite(c.volume),
+          )
+          .sort((a, b) => a.timestamp - b.timestamp)
 
-        setData(mapped)
+        setCandles(mapped)
       } catch (fetchError) {
         if ((fetchError as Error).name === "AbortError") return
         setError(fetchError instanceof Error ? fetchError.message : "Erro desconhecido")
-        setData([])
+        setCandles([])
       } finally {
         setLoading(false)
       }
@@ -146,6 +152,118 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
     loadChartData()
     return () => controller.abort()
   }, [asset, period])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function buildClientChart() {
+      if (!asset || !chartContainerRef.current || candles.length === 0) {
+        destroyChart()
+        return
+      }
+
+      destroyChart()
+
+      try {
+        const { createChart, ColorType } = await import("lightweight-charts")
+        if (cancelled || !chartContainerRef.current) return
+
+        const container = chartContainerRef.current
+        const width = Math.max(320, container.clientWidth)
+        const height = Math.max(320, container.clientHeight)
+
+        const chart = createChart(container, {
+          width,
+          height,
+          layout: {
+            background: { type: ColorType.Solid, color: "transparent" },
+            textColor: "hsl(0 0% 62%)",
+            fontFamily: "var(--font-space-mono), monospace",
+          },
+          grid: {
+            vertLines: { color: "rgba(148, 163, 184, 0.10)" },
+            horzLines: { color: "rgba(148, 163, 184, 0.10)" },
+          },
+          rightPriceScale: {
+            borderVisible: false,
+            scaleMargins: { top: 0.08, bottom: 0.2 },
+          },
+          timeScale: {
+            borderVisible: false,
+            timeVisible: isIntraday,
+            secondsVisible: false,
+          },
+          crosshair: {
+            vertLine: { color: "rgba(52, 211, 153, 0.42)" },
+            horzLine: { color: "rgba(52, 211, 153, 0.42)" },
+          },
+        })
+
+        const candleSeries = chart.addCandlestickSeries({
+          upColor: "#22c55e",
+          downColor: "#ef4444",
+          borderUpColor: "#16a34a",
+          borderDownColor: "#dc2626",
+          wickUpColor: "#22c55e",
+          wickDownColor: "#ef4444",
+        })
+
+        const volumeSeries = chart.addHistogramSeries({
+          priceScaleId: "",
+          priceFormat: { type: "volume" },
+        })
+
+        chart.priceScale("").applyOptions({
+          scaleMargins: { top: 0.82, bottom: 0 },
+          borderVisible: false,
+        })
+
+        const candleData: CandlestickData<Time>[] = candles.map((item) => ({
+          time: Math.floor(item.timestamp / 1000) as Time,
+          open: item.open,
+          high: item.high,
+          low: item.low,
+          close: item.close,
+        }))
+
+        const volumeData: HistogramData<Time>[] = candles.map((item) => ({
+          time: Math.floor(item.timestamp / 1000) as Time,
+          value: item.volume,
+          color: item.close >= item.open ? "rgba(34, 197, 94, 0.45)" : "rgba(239, 68, 68, 0.45)",
+        }))
+
+        candleSeries.setData(candleData)
+        volumeSeries.setData(volumeData)
+        chart.timeScale().fitContent()
+
+        const resizeObserver = new ResizeObserver((entries) => {
+          const entry = entries[0]
+          if (!entry) return
+          const nextWidth = Math.max(320, Math.floor(entry.contentRect.width))
+          const nextHeight = Math.max(320, Math.floor(entry.contentRect.height))
+          chart.applyOptions({ width: nextWidth, height: nextHeight })
+        })
+
+        resizeObserver.observe(container)
+
+        chartApiRef.current = chart
+        candleSeriesRef.current = candleSeries
+        volumeSeriesRef.current = volumeSeries
+        resizeObserverRef.current = resizeObserver
+        setChartReady(true)
+      } catch {
+        setError("Falha ao renderizar grafico no navegador.")
+      }
+    }
+
+    buildClientChart()
+
+    return () => {
+      cancelled = true
+      destroyChart()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asset?.id, candles, isIntraday])
 
   useEffect(() => {
     if (!asset) return
@@ -165,7 +283,7 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
         { opacity: 1, scale: 1, duration: 0.45, ease: "power2.out" },
       )
     }
-  }, [asset?.id, period, data.length])
+  }, [asset?.id, period, candles.length])
 
   return (
     <div className="rounded-2xl border border-border bg-card p-6 flex flex-col h-full min-h-[580px]">
@@ -192,7 +310,9 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
               </span>
             </div>
             <span className="text-muted-foreground text-xs">
-              {latestPoint ? `Ultimo: ${formatPrice(latestPoint.close)}` : `Preco: ${formatPrice(asset.latestPrice)}`}
+              {latestPoint
+                ? `Ultimo: ${formatPrice(latestPoint.close)} | ${formatPercent(latestVariation)}`
+                : `Preco: ${formatPrice(asset.latestPrice)}`}
             </span>
           </div>
         ) : null}
@@ -223,40 +343,17 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
           <div className="h-full flex items-center justify-center text-muted-foreground text-sm">Carregando grafico...</div>
         ) : error ? (
           <div className="h-full flex items-center justify-center text-rose-300 text-sm">{error}</div>
-        ) : data.length === 0 ? (
+        ) : candles.length === 0 ? (
           <div className="h-full flex items-center justify-center text-muted-foreground text-sm">Sem dados para este periodo.</div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 10, right: 16, left: -10, bottom: 8 }}>
-              <defs>
-                <linearGradient id="assetChartGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(145 80% 42%)" stopOpacity={0.5} />
-                  <stop offset="100%" stopColor="hsl(145 80% 42%)" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="4 4" stroke="hsl(0 0% 14%)" vertical={false} />
-              <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "hsl(0 0% 56%)", fontSize: 11 }} minTickGap={18} />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: "hsl(0 0% 56%)", fontSize: 11 }}
-                width={92}
-                tickFormatter={(value) => formatPrice(Number(value))}
-              />
-              <Tooltip content={<ChartTooltip />} cursor={{ stroke: "hsl(145 80% 42%)", strokeDasharray: "4 4" }} />
-              <Area
-                type="monotone"
-                dataKey="close"
-                stroke="hsl(145 80% 42%)"
-                strokeWidth={2.5}
-                fill="url(#assetChartGradient)"
-                dot={false}
-                activeDot={{ r: 4, fill: "hsl(145 80% 42%)", stroke: "hsl(0 0% 4%)", strokeWidth: 2 }}
-                isAnimationActive
-                animationDuration={650}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <div className="h-full w-full relative">
+            <div ref={chartContainerRef} className="h-full w-full" />
+            {!chartReady ? (
+              <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm bg-background/35">
+                Preparando grafico...
+              </div>
+            ) : null}
+          </div>
         )}
       </div>
 

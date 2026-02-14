@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, Space_Mono } from 'next/font/google'
 
+import { AuthProvider } from '@/components/auth-provider'
 import './globals.css'
 
 const _inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
@@ -22,7 +23,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${_inter.variable} ${_spaceMono.variable} font-sans antialiased`}>{children}</body>
+      <body className={`${_inter.variable} ${_spaceMono.variable} font-sans antialiased`}>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   )
 }

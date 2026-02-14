@@ -33,6 +33,7 @@ Variáveis principais no `.env`:
 - `POLL_INTERVAL_SECONDS`: intervalo do envio automático
 - `DEFAULT_QUOTE_ASSET`: filtro padrão por moeda de cotação (ex.: `USDT`)
 - `DEFAULT_MAX_PAIRS`: limite padrão de pares
+- `DEFAULT_TOP_ASSETS_ONLY`: se `true`, retorna apenas as 30 moedas alvo
 
 ## 3) Rodar
 
@@ -70,6 +71,7 @@ curl "http://127.0.0.1:8000/markets/bybit?quote_asset=USDT&max_pairs=100"
 curl "http://127.0.0.1:8000/markets/okx?quote_asset=USDT&max_pairs=100"
 curl "http://127.0.0.1:8000/markets/kraken?quote_asset=USD&max_pairs=100"
 curl "http://127.0.0.1:8000/markets/coinbase?quote_asset=USD&max_pairs=100"
+curl "http://127.0.0.1:8000/markets/binance?quote_asset=USDT&top_assets_only=true"
 ```
 
 ### Rotas curtas por exchange
@@ -80,6 +82,7 @@ curl "http://127.0.0.1:8000/bybit/markets?quote_asset=USDT"
 curl "http://127.0.0.1:8000/okx/markets?quote_asset=USDT"
 curl "http://127.0.0.1:8000/kraken/markets?quote_asset=USD"
 curl "http://127.0.0.1:8000/coinbase/markets?quote_asset=USD"
+curl "http://127.0.0.1:8000/binance/markets?quote_asset=USDT&top_assets_only=true"
 ```
 
 ### Webhook local (entrada)
@@ -88,7 +91,7 @@ curl "http://127.0.0.1:8000/coinbase/markets?quote_asset=USD"
 curl -X POST "http://127.0.0.1:8000/webhooks/binance" \
   -H "Content-Type: application/json" \
   -H "X-Webhook-Token: SEU_TOKEN" \
-  -d '{"quote_asset":"USDT","max_pairs":100}'
+  -d '{"quote_asset":"USDT","max_pairs":100,"top_assets_only":true}'
 ```
 
 Troque `binance` por `bybit`, `okx`, `kraken` ou `coinbase`.

@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     # Filtros padrão
     default_quote_asset: Optional[str] = None
     default_max_pairs: Optional[int] = None
+    default_top_assets_only: bool = True
 
 
 @lru_cache

@@ -5,6 +5,8 @@ import { gsap } from "gsap"
 
 import type { RankedAsset } from "@/lib/types"
 
+const DEFAULT_VISIBLE_ASSETS = 7
+
 interface AssetTableProps {
   assets: RankedAsset[]
   selectedAssetId: string | null
@@ -31,7 +33,7 @@ export function AssetTable({ assets, selectedAssetId, onSelect }: AssetTableProp
 
   const visibleAssets = useMemo(() => {
     if (expanded) return assets
-    return assets.slice(0, 5)
+    return assets.slice(0, DEFAULT_VISIBLE_ASSETS)
   }, [assets, expanded])
 
   useEffect(() => {
@@ -48,52 +50,54 @@ export function AssetTable({ assets, selectedAssetId, onSelect }: AssetTableProp
         <span className="text-muted-foreground text-xs text-right">Clique 1x: grafico | 2x: IA</span>
       </div>
 
-      <div ref={listRef} className="space-y-2">
-        {visibleAssets.map((asset) => {
-          const selected = selectedAssetId === asset.id
+      <div className="flex-1 min-h-0">
+        <div ref={listRef} className={`h-full space-y-2 pr-1 ${expanded ? "overflow-y-auto" : "overflow-hidden"}`}>
+          {visibleAssets.map((asset) => {
+            const selected = selectedAssetId === asset.id
 
-          return (
-            <button
-              key={asset.id}
-              data-asset-row="true"
-              onClick={() => onSelect(asset)}
-              className={`w-full text-left rounded-xl border px-3 py-3 transition-all ${
-                selected ? "border-primary/50 bg-primary/10" : "border-border hover:bg-secondary/50"
-              } ${asset.available ? "" : "opacity-55"}`}
-              type="button"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-muted-foreground font-mono">#{asset.rank}</span>
-                    <span className="text-sm font-semibold text-foreground truncate">{asset.name}</span>
-                    <span className="text-[11px] text-muted-foreground">({asset.symbol}/{asset.quoteAsset})</span>
+            return (
+              <button
+                key={asset.id}
+                data-asset-row="true"
+                onClick={() => onSelect(asset)}
+                className={`w-full text-left rounded-xl border px-3 py-3 transition-all ${
+                  selected ? "border-primary/50 bg-primary/10" : "border-border hover:bg-secondary/50"
+                } ${asset.available ? "" : "opacity-55"}`}
+                type="button"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-muted-foreground font-mono">#{asset.rank}</span>
+                      <span className="text-sm font-semibold text-foreground truncate">{asset.name}</span>
+                      <span className="text-[11px] text-muted-foreground">({asset.symbol}/{asset.quoteAsset})</span>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-1 truncate">
+                      {asset.available ? `Melhor corretora: ${asset.bestExchange}` : "Sem dados suficientes"}
+                    </div>
                   </div>
-                  <div className="text-[11px] text-muted-foreground mt-1 truncate">
-                    {asset.available ? `Melhor corretora: ${asset.bestExchange}` : "Sem dados suficientes"}
+
+                  <div className="text-right shrink-0">
+                    <div className={`text-sm font-mono font-bold ${asset.netProfitPercent >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                      {asset.available ? formatPercent(asset.netProfitPercent) : "N/A"}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground font-mono">{formatPrice(asset.latestPrice)}</div>
                   </div>
                 </div>
-
-                <div className="text-right shrink-0">
-                  <div className={`text-sm font-mono font-bold ${asset.netProfitPercent >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                    {asset.available ? formatPercent(asset.netProfitPercent) : "N/A"}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground font-mono">{formatPrice(asset.latestPrice)}</div>
-                </div>
-              </div>
-            </button>
-          )
-        })}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
-      {assets.length > 5 ? (
-        <div className="pt-3 mt-auto">
+      {assets.length > DEFAULT_VISIBLE_ASSETS ? (
+        <div className="pt-3">
           <button
             type="button"
             onClick={() => setExpanded((prev) => !prev)}
             className="w-full rounded-lg border border-primary/35 bg-primary/10 text-primary py-2 text-xs font-semibold hover:bg-primary/20 transition-colors"
           >
-            {expanded ? "Ver menos" : "Ver mais"}
+            {expanded ? "Mostrar menos" : "Mostrar mais"}
           </button>
         </div>
       ) : null}

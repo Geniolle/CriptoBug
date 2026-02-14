@@ -10,6 +10,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Path
 from app.config import Settings, get_settings
 from app.exchange_clients import SUPPORTED_EXCHANGES, create_exchange_client, normalize_exchange
 from app.schemas import MarketSnapshotResponse, OutboundWebhookPayload, SnapshotParams
+from app.top_assets import filter_top_assets
 
 logger = logging.getLogger("market-webhook")
 logging.basicConfig(level=logging.INFO)
@@ -31,15 +32,24 @@ async def build_response(
     settings: Settings,
     quote_asset: Optional[str],
     max_pairs: Optional[int],
+    top_assets_only: Optional[bool],
 ) -> MarketSnapshotResponse:
     resolved_quote_asset = quote_asset if quote_asset is not None else settings.default_quote_asset
     resolved_max_pairs = max_pairs if max_pairs is not None else settings.default_max_pairs
+    resolved_top_assets_only = (
+        top_assets_only if top_assets_only is not None else settings.default_top_assets_only
+    )
+    client_max_pairs = None if resolved_top_assets_only else resolved_max_pairs
 
     client = create_exchange_client(exchange, settings)
     markets = await client.build_market_snapshot(
         quote_asset=resolved_quote_asset,
-        max_pairs=resolved_max_pairs,
+        max_pairs=client_max_pairs,
     )
+    if resolved_top_assets_only:
+        markets = filter_top_assets(markets)
+        if resolved_max_pairs:
+            markets = markets[:resolved_max_pairs]
 
     return MarketSnapshotResponse(
         exchange=exchange,
@@ -54,6 +64,7 @@ async def get_markets_for_exchange(
     exchange: str,
     quote_asset: Optional[str],
     max_pairs: Optional[int],
+    top_assets_only: Optional[bool],
     settings: Settings,
 ) -> MarketSnapshotResponse:
     normalized_exchange = _normalize_exchange_or_400(exchange)
@@ -62,6 +73,7 @@ async def get_markets_for_exchange(
         settings=settings,
         quote_asset=quote_asset,
         max_pairs=max_pairs,
+        top_assets_only=top_assets_only,
     )
 
 
@@ -80,54 +92,60 @@ async def get_markets(
     exchange: str = Path(..., description="binance, bybit, okx, kraken, coinbase"),
     quote_asset: Optional[str] = None,
     max_pairs: Optional[int] = None,
+    top_assets_only: Optional[bool] = None,
     settings: Settings = Depends(get_settings),
 ) -> MarketSnapshotResponse:
-    return await get_markets_for_exchange(exchange, quote_asset, max_pairs, settings)
+    return await get_markets_for_exchange(exchange, quote_asset, max_pairs, top_assets_only, settings)
 
 
 @app.get("/binance/markets", response_model=MarketSnapshotResponse)
 async def get_binance_markets(
     quote_asset: Optional[str] = None,
     max_pairs: Optional[int] = None,
+    top_assets_only: Optional[bool] = None,
     settings: Settings = Depends(get_settings),
 ) -> MarketSnapshotResponse:
-    return await get_markets_for_exchange("binance", quote_asset, max_pairs, settings)
+    return await get_markets_for_exchange("binance", quote_asset, max_pairs, top_assets_only, settings)
 
 
 @app.get("/bybit/markets", response_model=MarketSnapshotResponse)
 async def get_bybit_markets(
     quote_asset: Optional[str] = None,
     max_pairs: Optional[int] = None,
+    top_assets_only: Optional[bool] = None,
     settings: Settings = Depends(get_settings),
 ) -> MarketSnapshotResponse:
-    return await get_markets_for_exchange("bybit", quote_asset, max_pairs, settings)
+    return await get_markets_for_exchange("bybit", quote_asset, max_pairs, top_assets_only, settings)
 
 
 @app.get("/okx/markets", response_model=MarketSnapshotResponse)
 async def get_okx_markets(
     quote_asset: Optional[str] = None,
     max_pairs: Optional[int] = None,
+    top_assets_only: Optional[bool] = None,
     settings: Settings = Depends(get_settings),
 ) -> MarketSnapshotResponse:
-    return await get_markets_for_exchange("okx", quote_asset, max_pairs, settings)
+    return await get_markets_for_exchange("okx", quote_asset, max_pairs, top_assets_only, settings)
 
 
 @app.get("/kraken/markets", response_model=MarketSnapshotResponse)
 async def get_kraken_markets(
     quote_asset: Optional[str] = None,
     max_pairs: Optional[int] = None,
+    top_assets_only: Optional[bool] = None,
     settings: Settings = Depends(get_settings),
 ) -> MarketSnapshotResponse:
-    return await get_markets_for_exchange("kraken", quote_asset, max_pairs, settings)
+    return await get_markets_for_exchange("kraken", quote_asset, max_pairs, top_assets_only, settings)
 
 
 @app.get("/coinbase/markets", response_model=MarketSnapshotResponse)
 async def get_coinbase_markets(
     quote_asset: Optional[str] = None,
     max_pairs: Optional[int] = None,
+    top_assets_only: Optional[bool] = None,
     settings: Settings = Depends(get_settings),
 ) -> MarketSnapshotResponse:
-    return await get_markets_for_exchange("coinbase", quote_asset, max_pairs, settings)
+    return await get_markets_for_exchange("coinbase", quote_asset, max_pairs, top_assets_only, settings)
 
 
 @app.post("/webhooks/{exchange}", response_model=MarketSnapshotResponse)
@@ -144,6 +162,7 @@ async def receive_webhook(
         exchange=exchange,
         quote_asset=params.quote_asset,
         max_pairs=params.max_pairs,
+        top_assets_only=params.top_assets_only,
         settings=settings,
     )
 
@@ -173,6 +192,7 @@ async def outbound_webhook_loop(settings: Settings) -> None:
                 settings=settings,
                 quote_asset=settings.default_quote_asset,
                 max_pairs=settings.default_max_pairs,
+                top_assets_only=settings.default_top_assets_only,
             )
 
             payload = OutboundWebhookPayload(

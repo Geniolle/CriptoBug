@@ -7,6 +7,10 @@ from pydantic import BaseModel, Field
 class SnapshotParams(BaseModel):
     quote_asset: Optional[str] = Field(default=None, description="Ex.: USDT, BTC")
     max_pairs: Optional[int] = Field(default=None, ge=1, description="Limite de pares retornados")
+    top_assets_only: Optional[bool] = Field(
+        default=None,
+        description="Se true, filtra apenas Top 30 moedas configuradas",
+    )
 
 
 class MarketSnapshotItem(BaseModel):

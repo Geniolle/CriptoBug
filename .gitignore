@@ -1,0 +1,23 @@
+# Node / Next.js
+**/node_modules/
+**/.next/
+**/.turbo/
+**/dist/
+**/build/
+**/tsconfig.tsbuildinfo
+
+# Python
+**/.venv/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Environment files
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Logs / OS
+*.log
+.DS_Store

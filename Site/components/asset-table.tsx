@@ -44,13 +44,13 @@ export function AssetTable({ assets, selectedAssetId, onSelect }: AssetTableProp
   }, [visibleAssets])
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-6 flex flex-col h-full">
+    <div className="rounded-2xl border border-border bg-card p-6 flex flex-col h-full overflow-hidden">
       <div className="flex items-center justify-between mb-4 gap-2">
         <h3 className="text-foreground font-bold text-base">Top Assets</h3>
         <span className="text-muted-foreground text-xs text-right">Clique 1x: grafico | 2x: IA</span>
       </div>
 
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 overflow-hidden">
         <div ref={listRef} className={`h-full space-y-2 pr-1 ${expanded ? "overflow-y-auto" : "overflow-hidden"}`}>
           {visibleAssets.map((asset) => {
             const selected = selectedAssetId === asset.id

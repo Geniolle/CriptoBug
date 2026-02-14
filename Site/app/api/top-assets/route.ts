@@ -230,6 +230,9 @@ function rankAssetFromCandidates(
       if (buy.exchange === sell.exchange) {
         continue
       }
+      if (buy.quoteAsset !== sell.quoteAsset) {
+        continue
+      }
 
       const calc = estimateNetProfitPercent(buy, sell)
       if (calc.netProfitPercent > bestNet) {
@@ -267,7 +270,7 @@ function rankAssetFromCandidates(
     id: symbol,
     name,
     symbol,
-    quoteAsset: bestBuy.quoteAsset,
+    quoteAsset: bestSell.quoteAsset,
     marketSymbol: bestSell.marketSymbol,
     bestExchangeKey: bestSell.exchange,
     bestExchange: EXCHANGE_LABEL[bestSell.exchange],

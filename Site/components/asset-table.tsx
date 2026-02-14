@@ -1,5 +1,8 @@
 "use client"
 
+import { useEffect, useMemo, useRef, useState } from "react"
+import { gsap } from "gsap"
+
 import type { RankedAsset } from "@/lib/types"
 
 interface AssetTableProps {
@@ -23,59 +26,77 @@ function formatPrice(value: number): string {
 }
 
 export function AssetTable({ assets, selectedAssetId, onSelect }: AssetTableProps) {
+  const [expanded, setExpanded] = useState(false)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  const visibleAssets = useMemo(() => {
+    if (expanded) return assets
+    return assets.slice(0, 5)
+  }, [assets, expanded])
+
+  useEffect(() => {
+    if (!listRef.current) return
+
+    const rows = listRef.current.querySelectorAll("[data-asset-row='true']")
+    gsap.fromTo(rows, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.35, stagger: 0.03, ease: "power2.out" })
+  }, [visibleAssets])
+
   return (
     <div className="rounded-2xl border border-border bg-card p-6 flex flex-col h-full">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-2">
         <h3 className="text-foreground font-bold text-base">Top Assets</h3>
-        <span className="text-muted-foreground text-xs">Clique 1x: grafico | 2x: IA</span>
+        <span className="text-muted-foreground text-xs text-right">Clique 1x: grafico | 2x: IA</span>
       </div>
 
-      <div className="overflow-auto pr-1">
-        <table className="w-full min-w-[520px]">
-          <thead>
-            <tr className="border-b border-border">
-              <th className="text-left pb-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">#</th>
-              <th className="text-left pb-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">Asset</th>
-              <th className="text-right pb-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">Price</th>
-              <th className="text-right pb-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">Best Exchange</th>
-              <th className="text-right pb-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">Net Profit</th>
-            </tr>
-          </thead>
-          <tbody>
-            {assets.map((asset) => {
-              const selected = selectedAssetId === asset.id
-              return (
-                <tr
-                  key={asset.id}
-                  onClick={() => onSelect(asset)}
-                  className={`border-b border-border last:border-0 cursor-pointer transition-colors ${
-                    selected ? "bg-primary/10" : "hover:bg-secondary/50"
-                  } ${asset.available ? "" : "opacity-55"}`}
-                >
-                  <td className="py-4 text-xs font-mono text-muted-foreground">{asset.rank}</td>
-                  <td className="py-4">
-                    <div className="flex flex-col">
-                      <span className="text-foreground font-medium text-sm">{asset.name}</span>
-                      <span className="text-muted-foreground text-xs">{asset.symbol}/{asset.quoteAsset}</span>
-                    </div>
-                  </td>
-                  <td className="py-4 text-right text-foreground font-medium text-sm font-mono">
-                    {formatPrice(asset.latestPrice)}
-                  </td>
-                  <td className="py-4 text-right text-foreground text-sm">{asset.bestExchange}</td>
-                  <td
-                    className={`py-4 text-right font-semibold text-sm font-mono ${
-                      asset.netProfitPercent >= 0 ? "text-emerald-400" : "text-rose-400"
-                    }`}
-                  >
+      <div ref={listRef} className="space-y-2">
+        {visibleAssets.map((asset) => {
+          const selected = selectedAssetId === asset.id
+
+          return (
+            <button
+              key={asset.id}
+              data-asset-row="true"
+              onClick={() => onSelect(asset)}
+              className={`w-full text-left rounded-xl border px-3 py-3 transition-all ${
+                selected ? "border-primary/50 bg-primary/10" : "border-border hover:bg-secondary/50"
+              } ${asset.available ? "" : "opacity-55"}`}
+              type="button"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-muted-foreground font-mono">#{asset.rank}</span>
+                    <span className="text-sm font-semibold text-foreground truncate">{asset.name}</span>
+                    <span className="text-[11px] text-muted-foreground">({asset.symbol}/{asset.quoteAsset})</span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-1 truncate">
+                    {asset.available ? `Melhor corretora: ${asset.bestExchange}` : "Sem dados suficientes"}
+                  </div>
+                </div>
+
+                <div className="text-right shrink-0">
+                  <div className={`text-sm font-mono font-bold ${asset.netProfitPercent >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                     {asset.available ? formatPercent(asset.netProfitPercent) : "N/A"}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground font-mono">{formatPrice(asset.latestPrice)}</div>
+                </div>
+              </div>
+            </button>
+          )
+        })}
       </div>
+
+      {assets.length > 5 ? (
+        <div className="pt-3 mt-auto">
+          <button
+            type="button"
+            onClick={() => setExpanded((prev) => !prev)}
+            className="w-full rounded-lg border border-primary/35 bg-primary/10 text-primary py-2 text-xs font-semibold hover:bg-primary/20 transition-colors"
+          >
+            {expanded ? "Ver menos" : "Ver mais"}
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

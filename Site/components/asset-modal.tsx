@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { gsap } from "gsap"
 
 import type { DecisionPayload, RankedAsset } from "@/lib/types"
 
@@ -11,6 +12,7 @@ interface AssetModalProps {
 
 export function AssetModal({ asset, onClose }: AssetModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const [decision, setDecision] = useState<DecisionPayload | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -27,7 +29,7 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
 
       try {
         const response = await fetch(
-          `/api/decision?exchange=${encodeURIComponent(asset.bestExchangeKey)}&symbol=${encodeURIComponent(asset.marketSymbol)}&quote_asset=${encodeURIComponent(asset.quoteAsset)}`,
+          `/api/decision?exchange=${encodeURIComponent(asset.bestExchangeKey)}&symbol=${encodeURIComponent(asset.symbol)}&quote_asset=${encodeURIComponent(asset.quoteAsset)}`,
           {
             signal: controller.signal,
             cache: "no-store",
@@ -73,6 +75,11 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
     }
   }, [asset, onClose])
 
+  useEffect(() => {
+    if (!asset || !panelRef.current) return
+    gsap.fromTo(panelRef.current, { opacity: 0, y: 16, scale: 0.98 }, { opacity: 1, y: 0, scale: 1, duration: 0.32, ease: "power2.out" })
+  }, [asset])
+
   if (!asset) return null
 
   const action = decision?.acao ?? "HOLD"
@@ -87,7 +94,7 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
       }}
     >
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-      <div className="relative w-full max-w-2xl rounded-2xl border border-border bg-card shadow-2xl shadow-black/60">
+      <div ref={panelRef} className="relative w-full max-w-2xl rounded-2xl border border-border bg-card shadow-2xl shadow-black/60">
         <div className="flex items-center justify-between p-6 border-b border-border">
           <div>
             <h2 className="text-foreground font-bold text-xl">IA - {asset.name} ({asset.symbol})</h2>

@@ -81,8 +81,8 @@ export function TopAssetsDashboard({ onOpenAsset }: { onOpenAsset: (asset: Ranke
       <View style={styles.topRow}>
         <View style={{ flex: 1 }}>
           <Text style={styles.meta}>
-            Ranking calculado pelos hooks (lucro conservador com custos reais + buffer).
-            {generatedAt ? ` Atualizado em ${new Date(generatedAt).toLocaleString()}.` : ''}
+            Ranking calculado pelas rotinas (lucro conservador com custos reais + margem).
+            {generatedAt ? ` Atualizado em ${new Date(generatedAt).toLocaleString('pt-BR')}.` : ''}
           </Text>
         </View>
         <Button

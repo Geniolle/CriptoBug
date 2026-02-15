@@ -112,10 +112,10 @@ export default function ProfileScreen() {
             <>
               <Text style={styles.subText}>
                 Conecte suas exchanges na aba <Text style={{ fontWeight: '900', color: theme.colors.text }}>APIs</Text> para
-                habilitar BUY/SELL e historico.
+                habilitar compra/venda e historico.
               </Text>
               <Button
-                label={pending ? 'Saindo...' : 'Logout'}
+                label={pending ? 'Saindo...' : 'Sair'}
                 onPress={handleLogout}
                 disabled={pending}
                 loading={pending}
@@ -208,4 +208,3 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.99 }],
   },
 });
-

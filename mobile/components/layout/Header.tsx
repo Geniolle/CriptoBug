@@ -58,7 +58,7 @@ export function Header({ title }: { title?: string }) {
             </Pressable>
           ) : (
             <Button
-              label="Login"
+              label="Entrar"
               onPress={handleLogin}
               loading={pending}
               variant="primary"
@@ -166,4 +166,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

@@ -237,9 +237,9 @@ export function AccountConnectionsPanel({ enabled = true }: { enabled?: boolean 
         <View style={{ padding: theme.space.lg, gap: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.sectionTitle}>Binance: IP whitelist</Text>
+              <Text style={styles.sectionTitle}>Binance: lista de IP</Text>
               <Text style={styles.subText}>
-                Para operar (Trading habilitado), a Binance exige restringir por IP. Voce deve colocar o IP publico de saida do
+                Para operar (operacao habilitada), a Binance exige restringir por IP. Voce deve colocar o IP publico de saida do
                 servico /DB. Em hosts como Railway, esse IP pode mudar em redeploy.
               </Text>
             </View>
@@ -279,7 +279,7 @@ export function AccountConnectionsPanel({ enabled = true }: { enabled?: boolean 
                 </View>
 
                 {linked[exchange.key].apiKeyHint ? (
-                  <Text style={styles.hint}>API Key: {linked[exchange.key].apiKeyHint}</Text>
+                  <Text style={styles.hint}>Chave API: {linked[exchange.key].apiKeyHint}</Text>
                 ) : (
                   <Text style={styles.subText}>Nenhuma chave salva.</Text>
                 )}
@@ -288,7 +288,7 @@ export function AccountConnectionsPanel({ enabled = true }: { enabled?: boolean 
                   <TextInput
                     value={values.apiKey}
                     onChangeText={(text) => updateField(exchange.key, 'apiKey', text)}
-                    placeholder="API Key"
+                    placeholder="Chave API"
                     placeholderTextColor={theme.colors.muted2}
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -297,7 +297,7 @@ export function AccountConnectionsPanel({ enabled = true }: { enabled?: boolean 
                   <TextInput
                     value={values.apiSecret}
                     onChangeText={(text) => updateField(exchange.key, 'apiSecret', text)}
-                    placeholder="API Secret"
+                    placeholder="Segredo API"
                     placeholderTextColor={theme.colors.muted2}
                     autoCapitalize="none"
                     autoCorrect={false}

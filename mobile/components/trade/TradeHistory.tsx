@@ -6,12 +6,11 @@ import { theme } from '@/constants/theme';
 import { DB_API_BASE_URL } from '@/lib/endpoints';
 import { getTradeActions } from '@/lib/db-api';
 import type { TradeActionItem } from '@/lib/types';
+import { formatDateTimePt, labelOrderTypePt, labelSideShortPt, labelStatusPt } from '@/lib/pt';
 import { useAuth } from '@/providers/auth-provider';
 
 function formatWhen(value: string): string {
-  const ts = new Date(value).getTime();
-  if (!Number.isFinite(ts)) return value;
-  return new Date(ts).toLocaleString();
+  return formatDateTimePt(value);
 }
 
 export function TradeHistory() {
@@ -98,13 +97,13 @@ export function TradeHistory() {
               <Text style={styles.rowMeta}>
                 {formatWhen(item.createdAt)} •{' '}
                 <Text style={{ color: item.side === 'BUY' ? theme.colors.primary : '#FB7185', fontWeight: '900' }}>
-                  {item.side}
+                  {labelSideShortPt(item.side)}
                 </Text>{' '}
-                • {item.orderType} • qtd {item.amount}
+                • {labelOrderTypePt(item.orderType)} • qtd {item.amount}
               </Text>
               <Text style={styles.rowMeta} numberOfLines={2}>
-                {item.status}
-                {item.exchangeOrderId ? ` (order: ${item.exchangeOrderId})` : ''}
+                {labelStatusPt(item.status)}
+                {item.exchangeOrderId ? ` (ordem: ${item.exchangeOrderId})` : ''}
                 {item.error ? ` (${item.error})` : ''}
               </Text>
             </View>
@@ -220,4 +219,3 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.99 }],
   },
 });
-

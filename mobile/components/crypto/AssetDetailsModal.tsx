@@ -8,6 +8,7 @@ import type { DecisionPayload, RankedAsset } from '@/lib/types';
 import { fetchDecision } from '@/lib/decision';
 import { getConnections, placeTradeOrder, type ExchangeKey } from '@/lib/db-api';
 import { DB_API_BASE_URL } from '@/lib/endpoints';
+import { labelSidePt, labelSideShortPt } from '@/lib/pt';
 import { useAuth } from '@/providers/auth-provider';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Button } from '@/components/ui/Button';
@@ -126,7 +127,7 @@ export function AssetDetailsModal({
       if (!DB_API_BASE_URL) throw new Error('DB API nao configurada (EXPO_PUBLIC_DB_API_BASE_URL).');
 
       const ex = side === 'BUY' ? buyExchange : sellExchange;
-      if (!ex.key) throw new Error('Exchange recomendada indisponivel para este ativo.');
+      if (!ex.key) throw new Error('Corretora recomendada indisponivel para este ativo.');
       if (!linkedExchanges.includes(ex.key)) {
         throw new Error(`Voce nao vinculou ${ex.label}. Abra Perfil > APIs e vincule para operar.`);
       }
@@ -135,9 +136,11 @@ export function AssetDetailsModal({
       if (!Number.isFinite(amount) || amount <= 0) throw new Error('Quantidade invalida');
 
       const ok = await new Promise<boolean>((resolve) => {
+        const title = side === 'BUY' ? 'Confirmar compra' : 'Confirmar venda';
+        const sideLabel = side === 'BUY' ? 'compra' : 'venda';
         Alert.alert(
-          `${side} market`,
-          `Enviar ordem ${side} de ${amount} ${targetAsset.symbol} em ${ex.label}?`,
+          title,
+          `Enviar ordem de ${sideLabel} a mercado de ${amount} ${targetAsset.symbol} em ${ex.label}?`,
           [
             { text: 'Cancelar', style: 'cancel', onPress: () => resolve(false) },
             { text: 'Confirmar', style: 'default', onPress: () => resolve(true) },
@@ -162,10 +165,10 @@ export function AssetDetailsModal({
 
       const status = payload?.status ?? 'OK';
       if (status === 'DRY_RUN') {
-        setTradeMessage('DRY_RUN: ordem registrada apenas no historico (nao enviada a exchange).');
+        setTradeMessage('SIMULACAO: ordem registrada apenas no historico (nao enviada a corretora).');
       } else if (status === 'EXECUTED') {
-        const extra = payload?.exchangeOrderId ? ` | order: ${payload.exchangeOrderId}` : '';
-        setTradeMessage(`EXECUTED: ${payload?.id ?? '-'}${extra}`);
+        const extra = payload?.exchangeOrderId ? ` | ordem: ${payload.exchangeOrderId}` : '';
+        setTradeMessage(`EXECUTADA: ${payload?.id ?? '-'}${extra}`);
       } else {
         setTradeMessage(`Ordem registrada: ${status} (${payload?.id ?? '-'})`);
       }
@@ -191,7 +194,7 @@ export function AssetDetailsModal({
                 IA: {asset.name} ({asset.symbol})
               </Text>
               <Text style={styles.hSub} numberOfLines={1}>
-                Exchange: {asset.bestExchange} | Par: {asset.marketSymbol}
+                Corretora: {asset.bestExchange} | Par: {asset.marketSymbol}
               </Text>
             </View>
             <Pressable onPress={onClose} style={({ pressed }) => [styles.closeBtn, pressed ? styles.pressed : null]}>
@@ -213,7 +216,7 @@ export function AssetDetailsModal({
                 <View style={styles.metrics}>
                   <View style={styles.metric}>
                     <Text style={styles.metricLabel}>Acao</Text>
-                    <Text style={[styles.metricValue, { color: actionColor }]}>{decision.acao}</Text>
+                    <Text style={[styles.metricValue, { color: actionColor }]}>{labelSidePt(decision.acao)}</Text>
                   </View>
                   <View style={styles.metric}>
                     <Text style={styles.metricLabel}>Confianca</Text>
@@ -242,15 +245,22 @@ export function AssetDetailsModal({
                 </View>
 
                 <View style={styles.tradeBox}>
-                  <Text style={styles.blockTitle}>Acoes (BUY/SELL)</Text>
+                  <Text style={styles.blockTitle}>Acoes (COMPRAR/VENDER)</Text>
                   <Text style={styles.tradeHint}>
-                    Isso registra e tenta executar a ordem via suas credenciais vinculadas. O servico /DB pode estar em DRY_RUN.
+                    Isso registra e tenta executar a ordem via suas credenciais vinculadas. O servico /DB pode estar em SIMULACAO.
                   </Text>
 
                   <View style={styles.exchangeBox}>
-                    <Text style={styles.smallLabel}>Exchange (auto)</Text>
+                    <Text style={styles.smallLabel}>Corretora (auto)</Text>
                     <View style={styles.exchangeRow}>
-                      <Text style={[styles.exchangeSide, recommendedSide === 'BUY' ? { color: theme.colors.primary } : null]}>BUY</Text>
+                      <Text
+                        style={[
+                          styles.exchangeSide,
+                          recommendedSide === 'BUY' ? { color: theme.colors.primary } : null,
+                        ]}
+                      >
+                        {labelSideShortPt('BUY')}
+                      </Text>
                       <Text style={styles.exchangeName} numberOfLines={1}>
                         {buyExchange.label}
                       </Text>
@@ -259,7 +269,9 @@ export function AssetDetailsModal({
                       </Text>
                     </View>
                     <View style={styles.exchangeRow}>
-                      <Text style={[styles.exchangeSide, recommendedSide === 'SELL' ? { color: '#FB7185' } : null]}>SELL</Text>
+                      <Text style={[styles.exchangeSide, recommendedSide === 'SELL' ? { color: '#FB7185' } : null]}>
+                        {labelSideShortPt('SELL')}
+                      </Text>
                       <Text style={styles.exchangeName} numberOfLines={1}>
                         {sellExchange.label}
                       </Text>
@@ -288,12 +300,12 @@ export function AssetDetailsModal({
                       <View style={styles.warnBoxDanger}>
                         <Text style={styles.warnText}>
                           {linkedExchanges.length === 0
-                            ? 'Nenhuma exchange vinculada. Vincule suas APIs para habilitar BUY/SELL.'
+                            ? 'Nenhuma corretora vinculada. Vincule suas APIs para habilitar compra/venda.'
                             : recommendedSide === 'BUY'
-                              ? `BUY recomendado na ${buyExchange.label}. Vincule para operar.`
+                              ? `Compra recomendada na ${buyExchange.label}. Vincule para operar.`
                               : recommendedSide === 'SELL'
-                                ? `SELL recomendado na ${sellExchange.label}. Vincule para operar.`
-                                : 'Vincule a exchange recomendada para operar.'}
+                                ? `Venda recomendada na ${sellExchange.label}. Vincule para operar.`
+                                : 'Vincule a corretora recomendada para operar.'}
                         </Text>
                         <Button label="Abrir APIs" onPress={openApisAndClose} variant="danger" style={{ marginTop: 10 }} />
                       </View>
@@ -314,7 +326,7 @@ export function AssetDetailsModal({
 
                   <View style={styles.tradeRow}>
                     <Button
-                      label="BUY"
+                      label="COMPRAR"
                       onPress={() => submitTrade('BUY')}
                       disabled={!user || !buyLinked}
                       loading={tradePending && tradePendingSide === 'BUY'}
@@ -322,7 +334,7 @@ export function AssetDetailsModal({
                       style={{ flex: 1 }}
                     />
                     <Button
-                      label="SELL"
+                      label="VENDER"
                       onPress={() => submitTrade('SELL')}
                       disabled={!user || !sellLinked}
                       loading={tradePending && tradePendingSide === 'SELL'}
@@ -493,7 +505,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   exchangeSide: {
-    width: 44,
+    width: 64,
     color: theme.colors.text,
     fontSize: 12,
     fontWeight: '900',

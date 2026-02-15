@@ -20,18 +20,6 @@ const exchanges = [
     ),
   },
   {
-    name: 'Coinbase',
-    logo: (
-      <Svg width={28} height={28} viewBox="0 0 32 32" fill="none">
-        <Rect width="32" height="32" rx="6" fill="#0052FF" />
-        <Path
-          d="M16 6C10.48 6 6 10.48 6 16s4.48 10 10 10 10-4.48 10-10S21.52 6 16 6zm0 16.5c-1.38 0-2.5-1.12-2.5-2.5h-3c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5h-3c0 1.38-1.12 2.5-2.5 2.5zm0-9c1.38 0 2.5 1.12 2.5 2.5h3c0-3.04-2.46-5.5-5.5-5.5S10.5 12.96 10.5 16h3c0-1.38 1.12-2.5 2.5-2.5z"
-          fill="white"
-        />
-      </Svg>
-    ),
-  },
-  {
     name: 'Kraken',
     logo: (
       <Svg width={28} height={28} viewBox="0 0 32 32" fill="none">
@@ -76,7 +64,7 @@ const exchanges = [
 export function ExchangeCarousel() {
   return (
     <GlassCard style={styles.card} intensity={22}>
-      <Marquee speed={55} spacing={36} style={{ paddingVertical: theme.space.md }}>
+      <Marquee speed={35} spacing={36} style={{ paddingVertical: theme.space.md }}>
         {exchanges.map((ex) => (
           <View key={ex.name} style={styles.item}>
             {ex.logo}

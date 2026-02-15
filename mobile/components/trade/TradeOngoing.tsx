@@ -8,6 +8,7 @@ import { theme } from '@/constants/theme';
 import { DB_API_BASE_URL } from '@/lib/endpoints';
 import { getTradeActions, placeTradeOrder, type ExchangeKey } from '@/lib/db-api';
 import type { TradeActionItem } from '@/lib/types';
+import { formatDateTimePt, labelModePt, labelOrderTypePt, labelSideShortPt, labelStatusPt } from '@/lib/pt';
 import { useAuth } from '@/providers/auth-provider';
 
 const ONGOING_STATUSES = new Set(['PENDING', 'DRY_RUN']);
@@ -35,9 +36,7 @@ function formatAmount(value: number): string {
 }
 
 function formatWhen(value: string): string {
-  const ts = new Date(value).getTime();
-  if (!Number.isFinite(ts)) return value;
-  return new Date(ts).toLocaleString();
+  return formatDateTimePt(value);
 }
 
 export function TradeOngoing() {
@@ -120,7 +119,7 @@ export function TradeOngoing() {
       const ok = await new Promise<boolean>((resolve) => {
         Alert.alert(
           'Confirmar venda',
-          `Vender (market) ${formatAmount(position.openAmount)} do par ${position.symbol} na ${position.exchange}?`,
+          `Vender (mercado) ${formatAmount(position.openAmount)} do par ${position.symbol} na ${position.exchange}?`,
           [
             { text: 'Cancelar', style: 'cancel', onPress: () => resolve(false) },
             { text: 'Confirmar', style: 'destructive', onPress: () => resolve(true) },
@@ -181,7 +180,7 @@ export function TradeOngoing() {
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>Em andamento</Text>
             <Text style={styles.subTitle}>
-              Posições abertas são calculadas a partir das últimas 200 ações (EXECUTED/DRY_RUN). Atualiza a cada 10s.
+              Posições abertas sao calculadas a partir das ultimas 200 acoes (EXECUTADA/SIMULACAO). Atualiza a cada 10s.
             </Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
@@ -214,11 +213,14 @@ export function TradeOngoing() {
                       {pos.symbol} <Text style={styles.rowSub}>({pos.exchange})</Text>
                     </Text>
                     <Text style={styles.rowMeta}>
-                      {pos.mode === 'REAL' ? (
-                        <Text style={{ color: theme.colors.primary, fontWeight: '900' }}>REAL</Text>
-                      ) : (
-                        <Text style={{ color: theme.colors.warning, fontWeight: '900' }}>DRY_RUN</Text>
-                      )}{' '}
+                      <Text
+                        style={{
+                          color: pos.mode === 'REAL' ? theme.colors.primary : theme.colors.warning,
+                          fontWeight: '900',
+                        }}
+                      >
+                        {labelModePt(pos.mode)}
+                      </Text>{' '}
                       • atualizado {formatWhen(pos.lastUpdatedAt)}
                     </Text>
                   </View>
@@ -239,8 +241,8 @@ export function TradeOngoing() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Ordens pendentes / DRY_RUN</Text>
-          <Text style={styles.subTitle}>Aqui ficam suas acoes ainda nao finalizadas (PENDING/DRY_RUN).</Text>
+          <Text style={styles.sectionTitle}>Ordens pendentes / SIMULACAO</Text>
+          <Text style={styles.subTitle}>Aqui ficam suas acoes ainda nao finalizadas (PENDENTE/SIMULACAO).</Text>
 
           {pendingActions.length === 0 && !loading ? (
             <Text style={[styles.muted, { marginTop: 10 }]}>Nenhuma ordem pendente.</Text>
@@ -255,13 +257,13 @@ export function TradeOngoing() {
                     <Text style={styles.rowMeta}>
                       {formatWhen(item.createdAt)} •{' '}
                       <Text style={{ color: item.side === 'BUY' ? theme.colors.primary : '#FB7185', fontWeight: '900' }}>
-                        {item.side}
+                        {labelSideShortPt(item.side)}
                       </Text>{' '}
-                      • {item.orderType} • qtd {item.amount}
+                      • {labelOrderTypePt(item.orderType)} • qtd {item.amount}
                     </Text>
                     <Text style={styles.rowMeta} numberOfLines={2}>
-                      {item.status}
-                      {item.exchangeOrderId ? ` (order: ${item.exchangeOrderId})` : ''}
+                      {labelStatusPt(item.status)}
+                      {item.exchangeOrderId ? ` (ordem: ${item.exchangeOrderId})` : ''}
                       {item.error ? ` (${item.error})` : ''}
                     </Text>
                   </View>
@@ -391,4 +393,3 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.99 }],
   },
 });
-

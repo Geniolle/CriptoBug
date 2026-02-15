@@ -144,7 +144,7 @@ export function AssetChartCard({
               {asset ? `${asset.name} (${asset.symbol})` : 'Selecione um ativo'}
             </Text>
             <Text style={styles.subtitle} numberOfLines={1}>
-              {asset ? `Exchange: ${asset.bestExchange || asset.bestExchangeKey || '-'} | Par: ${asset.marketSymbol}` : 'Top 30 arbitragem'}
+              {asset ? `Corretora: ${asset.bestExchange || asset.bestExchangeKey || '-'} | Par: ${asset.marketSymbol}` : 'Top 30 arbitragem'}
             </Text>
           </View>
 

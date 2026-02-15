@@ -66,8 +66,15 @@ function toChartTime(candle: ChartCandle, intraday: boolean): Time | null {
     return Number.isFinite(utcSeconds) ? (utcSeconds as Time) : null
   }
 
-  const isoDate = candle.datetime_utc?.slice(0, 10)
-  const [yearStr, monthStr, dayStr] = isoDate.split("-")
+  const isoDate = typeof candle.datetime_utc === "string" ? candle.datetime_utc.slice(0, 10) : ""
+  if (!isoDate || !isoDate.includes("-")) {
+    return null
+  }
+
+  const parts = isoDate.split("-")
+  if (parts.length !== 3) return null
+
+  const [yearStr, monthStr, dayStr] = parts
   const year = Number(yearStr)
   const month = Number(monthStr)
   const day = Number(dayStr)
@@ -175,7 +182,10 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
         const mapped = incomingCandles
           .map((c) => ({
             timestamp: Number(c.timestamp),
-            datetime_utc: c.datetime_utc,
+            datetime_utc:
+              typeof c.datetime_utc === "string" && c.datetime_utc
+                ? c.datetime_utc
+                : new Date(Number(c.timestamp)).toISOString(),
             open: Number(c.open),
             high: Number(c.high),
             low: Number(c.low),
@@ -334,53 +344,59 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
     if (!chartApiRef.current || !candleSeriesRef.current || !volumeSeriesRef.current) return
     if (candles.length === 0) return
 
-    const renderCandles = isIntraday ? candles.slice(-MAX_RENDER_BARS_INTRADAY) : candles
+    try {
+      const renderCandles = isIntraday ? candles.slice(-MAX_RENDER_BARS_INTRADAY) : candles
 
-    const candleData: CandlestickData<Time>[] = []
-    const volumeData: HistogramData<Time>[] = []
-    const seenTimes = new Set<string>()
+      const candleData: CandlestickData<Time>[] = []
+      const volumeData: HistogramData<Time>[] = []
+      const seenTimes = new Set<string>()
 
-    for (const item of renderCandles) {
-      const time = toChartTime(item, isIntraday)
-      if (!time) continue
+      for (const item of renderCandles) {
+        const time = toChartTime(item, isIntraday)
+        if (!time) continue
 
-      const timeKey =
-        typeof time === "number"
-          ? String(time)
-          : typeof time === "string"
-            ? time
-            : `${time.year}-${time.month}-${time.day}`
-      if (seenTimes.has(timeKey)) continue
-      seenTimes.add(timeKey)
+        const timeKey =
+          typeof time === "number"
+            ? String(time)
+            : typeof time === "string"
+              ? time
+              : `${time.year}-${time.month}-${time.day}`
+        if (seenTimes.has(timeKey)) continue
+        seenTimes.add(timeKey)
 
-      const high = Math.max(item.high, item.open, item.close)
-      const low = Math.min(item.low, item.open, item.close)
+        const high = Math.max(item.high, item.open, item.close)
+        const low = Math.min(item.low, item.open, item.close)
 
-      candleData.push({
-        time,
-        open: item.open,
-        high,
-        low,
-        close: item.close,
-      })
+        candleData.push({
+          time,
+          open: item.open,
+          high,
+          low,
+          close: item.close,
+        })
 
-      volumeData.push({
-        time,
-        value: item.volume,
-        color: item.close >= item.open ? "rgba(34, 197, 94, 0.45)" : "rgba(239, 68, 68, 0.45)",
-      })
-    }
+        volumeData.push({
+          time,
+          value: item.volume,
+          color: item.close >= item.open ? "rgba(34, 197, 94, 0.45)" : "rgba(239, 68, 68, 0.45)",
+        })
+      }
 
-    if (candleData.length === 0) return
+      if (candleData.length === 0) return
 
-    candleSeriesRef.current.setData(candleData)
-    volumeSeriesRef.current.setData(volumeData)
+      candleSeriesRef.current.setData(candleData)
+      volumeSeriesRef.current.setData(volumeData)
 
-    if (!didAutoZoomRef.current) {
-      const from = Math.max(0, candleData.length - AUTO_ZOOM_BARS)
-      const to = Math.max(AUTO_ZOOM_BARS, candleData.length + 1)
-      chartApiRef.current.timeScale().setVisibleLogicalRange({ from, to })
-      didAutoZoomRef.current = true
+      if (!didAutoZoomRef.current) {
+        const from = Math.max(0, candleData.length - AUTO_ZOOM_BARS)
+        const to = Math.max(AUTO_ZOOM_BARS, candleData.length + 1)
+        chartApiRef.current.timeScale().setVisibleLogicalRange({ from, to })
+        didAutoZoomRef.current = true
+      }
+    } catch (renderError) {
+      const detail = toErrorMessage(renderError)
+      console.error("Erro ao aplicar velas no grafico:", renderError)
+      setError(`Falha ao renderizar grafico no navegador (${detail}).`)
     }
   }, [candles, isIntraday, chartReady])
 
@@ -412,7 +428,10 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
         const mapped = incomingCandles
           .map((c) => ({
             timestamp: Number(c.timestamp),
-            datetime_utc: c.datetime_utc,
+            datetime_utc:
+              typeof c.datetime_utc === "string" && c.datetime_utc
+                ? c.datetime_utc
+                : new Date(Number(c.timestamp)).toISOString(),
             open: Number(c.open),
             high: Number(c.high),
             low: Number(c.low),

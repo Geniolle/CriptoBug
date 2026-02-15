@@ -408,8 +408,8 @@ export function AccountConnectionsModal({ open, userName, userEmail, onClose }: 
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative z-10 w-full max-w-4xl rounded-2xl border border-border bg-card shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-border p-5">
+      <div className="relative z-10 flex w-full max-w-4xl max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border p-5">
           <div>
             <h2 className="text-xl font-bold text-foreground">Configuracao da Conta</h2>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -429,7 +429,7 @@ export function AccountConnectionsModal({ open, userName, userEmail, onClose }: 
           </button>
         </div>
 
-        <div className="p-5">
+        <div className="min-h-0 overflow-y-auto p-5">
           <AccountConnectionsPanel userEmail={userEmail} enabled={open} />
         </div>
       </div>

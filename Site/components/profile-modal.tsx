@@ -142,6 +142,7 @@ export function ProfileModal({ open, initialTab, onClose }: ProfileModalProps) {
                 </button>
               </div>
             ) : (
+              <div className="max-h-[85vh] overflow-y-auto">
               <div className="mt-4">
                 <div className="rounded-xl border border-border bg-background/30 p-4">
                   <div className="text-sm text-foreground font-semibold">APIs</div>
@@ -149,6 +150,7 @@ export function ProfileModal({ open, initialTab, onClose }: ProfileModalProps) {
                 </div>
 
                 <AccountConnectionsPanel userEmail={email} enabled={open && tab === "apis"} />
+              </div>
               </div>
             )}
           </div>

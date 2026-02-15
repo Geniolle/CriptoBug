@@ -64,16 +64,16 @@ export function ProfileModal({ open, initialTab, onClose }: ProfileModalProps) {
   return (
     <div
       ref={overlayRef}
-      className="z-50 flex items-center justify-center overflow-y-auto p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={(event) => {
         if (event.target === overlayRef.current) onClose()
       }}
     >
-      <div className="bg-black/70 backdrop-blur-sm" onClick={onClose}/>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
-      <div className="relative z-10 w-full max-w-4xl max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-card shadow-2xl">
-          <div className="flex-1 items-start justify-between gap-4 border-b border-border p-5">
-            <div className="flex-1 items-center gap-3 min-w-0">
+      <div className="relative z-10 w-full max-w-4xl max-h-[85vh] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+          <div className="flex items-start justify-between gap-4 border-b border-border p-5">
+            <div className="flex items-center gap-3 min-w-0">
               {user.photoURL ? (
                 <img src={user.photoURL} alt={displayName} className="h-10 w-10 rounded-full" />
               ) : (
@@ -96,7 +96,7 @@ export function ProfileModal({ open, initialTab, onClose }: ProfileModalProps) {
           </div>
 
           <div className="p-5 overflow-auto">
-            <div className="flex-1 items-center gap-2">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setTab("perfil")}
@@ -142,7 +142,6 @@ export function ProfileModal({ open, initialTab, onClose }: ProfileModalProps) {
                 </button>
               </div>
             ) : (
-              <div className="max-h-[85vh] overflow-y-auto">
               <div className="mt-4">
                 <div className="rounded-xl border border-border bg-background/30 p-4">
                   <div className="text-sm text-foreground font-semibold">APIs</div>
@@ -150,7 +149,6 @@ export function ProfileModal({ open, initialTab, onClose }: ProfileModalProps) {
                 </div>
 
                 <AccountConnectionsPanel userEmail={email} enabled={open && tab === "apis"} />
-              </div>
               </div>
             )}
           </div>

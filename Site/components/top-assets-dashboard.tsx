@@ -14,7 +14,7 @@ interface TopAssetsResponse {
 }
 
 const DEFAULT_PERIOD = "dia"
-const TOP_ASSETS_LOCAL_CACHE_KEY = "cryptobug:top-assets-cache:v1"
+const TOP_ASSETS_LOCAL_CACHE_KEY = "cryptobug:top-assets-cache:v2"
 
 export function TopAssetsDashboard() {
   const [assets, setAssets] = useState<RankedAsset[]>([])

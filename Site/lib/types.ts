@@ -5,6 +5,8 @@ export interface RankedAsset {
   symbol: string
   quoteAsset: string
   marketSymbol: string
+  buyMarketSymbol: string
+  sellMarketSymbol: string
   bestExchangeKey: string
   bestExchange: string
   buyExchangeKey: string

@@ -279,6 +279,8 @@ export function AccountConnectionsPanel({ userEmail, enabled = true }: { userEma
   }
 
   return (
+  <div className="max-h-[85vh] overflow-y-auto">
+
     <div>
       <div className="mb-4 rounded-xl border border-border bg-background/30 p-4">
         <div className="flex items-start justify-between gap-3">
@@ -397,6 +399,7 @@ export function AccountConnectionsPanel({ userEmail, enabled = true }: { userEma
           </button>
         </div>
       </div>
+    </div>
     </div>
   )
 }

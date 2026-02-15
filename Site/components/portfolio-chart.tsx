@@ -118,6 +118,7 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
   }, [latestPoint])
 
   const isIntraday = useMemo(() => ["1minuto", "5minutos", "30minutos", "hr"].includes(period), [period])
+  const hasCandles = useMemo(() => candles.length > 0, [candles.length])
   const requestLimit = useMemo(() => {
     if (isIntraday) return MAX_RENDER_BARS_INTRADAY
     if (period === "full") return 2000
@@ -326,9 +327,10 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
       destroyChart()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [asset?.id, period, isIntraday, candles.length])
+  }, [asset?.id, period, isIntraday, hasCandles])
 
   useEffect(() => {
+    if (!chartReady) return
     if (!chartApiRef.current || !candleSeriesRef.current || !volumeSeriesRef.current) return
     if (candles.length === 0) return
 
@@ -380,7 +382,7 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
       chartApiRef.current.timeScale().setVisibleLogicalRange({ from, to })
       didAutoZoomRef.current = true
     }
-  }, [candles, isIntraday])
+  }, [candles, isIntraday, chartReady])
 
   useEffect(() => {
     if (!asset) return

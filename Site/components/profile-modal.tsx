@@ -69,9 +69,9 @@ export function ProfileModal({ open, initialTab, onClose }: ProfileModalProps) {
         if (event.target === overlayRef.current) onClose()
       }}
     >
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose}/>
 
-      <div className="relative z-10 w-full max-w-4xl max-h-[85vh] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+      <div className="relative z-10 w-full max-w-4xl max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-card shadow-2xl">
           <div className="flex items-start justify-between gap-4 border-b border-border p-5">
             <div className="flex items-center gap-3 min-w-0">
               {user.photoURL ? (

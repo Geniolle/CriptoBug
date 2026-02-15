@@ -70,7 +70,14 @@ export function ExchangeCarousel() {
       <div className="relative overflow-hidden py-4">
         <div className="absolute left-0 top-0 bottom-0 w-12 z-10" style={{ background: "linear-gradient(to right, hsl(0 0% 7%), transparent)" }} />
         <div className="absolute right-0 top-0 bottom-0 w-12 z-10" style={{ background: "linear-gradient(to left, hsl(0 0% 7%), transparent)" }} />
-        <div className="flex animate-scroll-carousel" style={{ width: "max-content" }}>
+        <div
+          className="flex animate-scroll-carousel"
+          style={{
+            width: "max-content",
+            // Track is longer on wide screens; slow down to keep a consistent visual speed.
+            animationDuration: "240s",
+          }}
+        >
           {track.map((exchange, index) => (
             <div
               key={`${exchange.name}-${index}`}

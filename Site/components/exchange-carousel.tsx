@@ -15,19 +15,6 @@ const exchanges = [
     ),
   },
   {
-    name: "Coinbase",
-    color: "#0052FF",
-    logo: (
-      <svg viewBox="0 0 32 32" className="h-6 w-6" fill="none">
-        <rect width="32" height="32" rx="6" fill="#0052FF" />
-        <path
-          d="M16 6C10.48 6 6 10.48 6 16s4.48 10 10 10 10-4.48 10-10S21.52 6 16 6zm0 16.5c-1.38 0-2.5-1.12-2.5-2.5h-3c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5h-3c0 1.38-1.12 2.5-2.5 2.5zm0-9c1.38 0 2.5 1.12 2.5 2.5h3c0-3.04-2.46-5.5-5.5-5.5S10.5 12.96 10.5 16h3c0-1.38 1.12-2.5 2.5-2.5z"
-          fill="white"
-        />
-      </svg>
-    ),
-  },
-  {
     name: "Kraken",
     color: "#7B61FF",
     logo: (
@@ -73,13 +60,18 @@ const exchanges = [
 ]
 
 export function ExchangeCarousel() {
+  // On very wide screens, the ticker track can become shorter than the viewport.
+  // We repeat the base list to ensure the marquee always covers the full width.
+  const base = Array.from({ length: 12 }, () => exchanges).flat()
+  const track = [...base, ...base]
+
   return (
     <div className="mx-6 my-4 rounded-2xl border border-border bg-card overflow-hidden">
       <div className="relative overflow-hidden py-4">
         <div className="absolute left-0 top-0 bottom-0 w-12 z-10" style={{ background: "linear-gradient(to right, hsl(0 0% 7%), transparent)" }} />
         <div className="absolute right-0 top-0 bottom-0 w-12 z-10" style={{ background: "linear-gradient(to left, hsl(0 0% 7%), transparent)" }} />
         <div className="flex animate-scroll-carousel" style={{ width: "max-content" }}>
-          {[...exchanges, ...exchanges].map((exchange, index) => (
+          {track.map((exchange, index) => (
             <div
               key={`${exchange.name}-${index}`}
               className="flex items-center gap-3 px-8 shrink-0"

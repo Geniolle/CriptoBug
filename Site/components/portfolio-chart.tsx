@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import { gsap } from "gsap"
 import type { BusinessDay, CandlestickData, HistogramData, IChartApi, ISeriesApi, Time } from "lightweight-charts"
 
@@ -110,6 +110,9 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
   const didAutoZoomRef = useRef(false)
   const realtimeTimerRef = useRef<number | null>(null)
 
+  // novo: timestamp (ms) do último candle que foi renderizado/aplicado ao chart
+  const lastRenderedTimestampRef = useRef<number | null>(null)
+
   const latestPoint = useMemo(() => (candles.length > 0 ? candles[candles.length - 1] : null), [candles])
 
   const latestVariation = useMemo(() => {
@@ -134,6 +137,7 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
     volumeSeriesRef.current = null
     setChartReady(false)
     didAutoZoomRef.current = false
+    lastRenderedTimestampRef.current = null
   }
 
   useEffect(() => {
@@ -187,7 +191,10 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
           )
           .sort((a, b) => a.timestamp - b.timestamp)
 
+        // Inicializa totalmente quando carregamos histórico (substitui)
         setCandles(mapped)
+        // atualiza o último render timestamp para forçar setData inicial no chart
+        lastRenderedTimestampRef.current = null
         setLastUpdatedAt(Date.now())
       } catch (fetchError) {
         if ((fetchError as Error).name === "AbortError") return
@@ -323,28 +330,21 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asset?.id, period, isIntraday, candles.length])
 
+  // novo: efeito que aplica dados incrementalmente ao chart usando update quando possível
   useEffect(() => {
     if (!chartApiRef.current || !candleSeriesRef.current || !volumeSeriesRef.current) return
     if (candles.length === 0) return
 
+    // limitar se intraday
     const renderCandles = isIntraday ? candles.slice(-MAX_RENDER_BARS_INTRADAY) : candles
 
-    const candleData: CandlestickData<Time>[] = []
-    const volumeData: HistogramData<Time>[] = []
-    const seenTimes = new Set<string>()
+    // transforma em estruturas prontas para chart
+    const candleData: Array<{ time: Time | number; open: number; high: number; low: number; close: number; __ts: number }> = []
+    const volumeData: Array<{ time: Time | number; value: number; color: string; __ts: number }> = []
 
     for (const item of renderCandles) {
       const time = toChartTime(item, isIntraday)
       if (!time) continue
-
-      const timeKey =
-        typeof time === "number"
-          ? String(time)
-          : typeof time === "string"
-            ? time
-            : `${time.year}-${time.month}-${time.day}`
-      if (seenTimes.has(timeKey)) continue
-      seenTimes.add(timeKey)
 
       const high = Math.max(item.high, item.open, item.close)
       const low = Math.min(item.low, item.open, item.close)
@@ -355,28 +355,79 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
         high,
         low,
         close: item.close,
+        __ts: item.timestamp, // guardamos timestamp ms para comparacoes
       })
 
       volumeData.push({
         time,
         value: item.volume,
         color: item.close >= item.open ? "rgba(34, 197, 94, 0.45)" : "rgba(239, 68, 68, 0.45)",
+        __ts: item.timestamp,
       })
     }
 
     if (candleData.length === 0) return
 
-    candleSeriesRef.current.setData(candleData)
-    volumeSeriesRef.current.setData(volumeData)
+    const lastRendered = lastRenderedTimestampRef.current
+    // se nao renderizamos nada ainda, usar setData completo (inicial)
+    if (!lastRendered) {
+      candleSeriesRef.current.setData(candleData as CandlestickData<Time>[])
+      volumeSeriesRef.current.setData(volumeData as HistogramData<Time>[])
+      lastRenderedTimestampRef.current = candleData[candleData.length - 1].__ts
+    } else {
+      // encontrar novos candles que tem timestamp > lastRendered
+      const newCandles = candleData.filter((c) => c.__ts > (lastRendered ?? 0))
+      const newVolumes = volumeData.filter((v) => v.__ts > (lastRendered ?? 0))
+
+      // se houver atualizacao do ultimo candle (mesmo timestamp), atualizamos via update
+      const maybeLastIncoming = candleData[candleData.length - 1]
+      if (maybeLastIncoming.__ts === lastRendered) {
+        // atualizar o ultimo candle (em caso de candle em andamento ter mudado)
+        candleSeriesRef.current.update({
+          time: maybeLastIncoming.time,
+          open: maybeLastIncoming.open,
+          high: maybeLastIncoming.high,
+          low: maybeLastIncoming.low,
+          close: maybeLastIncoming.close,
+        } as CandlestickData<Time>)
+        const vol = volumeData[volumeData.length - 1]
+        volumeSeriesRef.current.update({ time: vol.time, value: vol.value, color: vol.color } as HistogramData<Time>)
+      }
+
+      // adicionar novos candles (se houver)
+      if (newCandles.length > 0) {
+        for (const nc of newCandles) {
+          candleSeriesRef.current.update({
+            time: nc.time,
+            open: nc.open,
+            high: nc.high,
+            low: nc.low,
+            close: nc.close,
+          } as CandlestickData<Time>)
+        }
+      }
+
+      if (newVolumes.length > 0) {
+        for (const nv of newVolumes) {
+          volumeSeriesRef.current.update({ time: nv.time, value: nv.value, color: nv.color } as HistogramData<Time>)
+        }
+      }
+
+      // avançar lastRenderedTimestampRef para o timestamp do último candle processado
+      lastRenderedTimestampRef.current = candleData[candleData.length - 1].__ts
+    }
 
     if (!didAutoZoomRef.current) {
-      const from = Math.max(0, candleData.length - AUTO_ZOOM_BARS)
-      const to = Math.max(AUTO_ZOOM_BARS, candleData.length + 1)
-      chartApiRef.current.timeScale().setVisibleLogicalRange({ from, to })
+      // ajustar visible range com base na versao renderizada
+      const total = candleData.length
+      const from = Math.max(0, total - AUTO_ZOOM_BARS)
+      const to = Math.max(AUTO_ZOOM_BARS, total + 1)
+      chartApiRef.current!.timeScale().setVisibleLogicalRange({ from, to })
       didAutoZoomRef.current = true
     }
   }, [candles, isIntraday])
 
+  // otimizado: poll que evita re-substituir todo o array - apenas anexa/atualiza
   useEffect(() => {
     if (!asset) return
     if (realtimeTimerRef.current) {
@@ -424,11 +475,41 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
 
         if (mapped.length === 0) return
 
-        setCandles((prev) => mergeCandles(prev, mapped))
+        // estrategia incremental:
+        setCandles((prev) => {
+          if (prev.length === 0) {
+            // se nao tinhamos nada, simplesmente setamos o array recebido (histórico inicial)
+            return mapped
+          }
+
+          const prevLastTs = prev[prev.length - 1].timestamp
+          const incomingLastTs = mapped[mapped.length - 1].timestamp
+
+          // se o ultimo timestamp do mapeado for igual ao nosso ultimo -> possivel atualização do candle em andamento
+          if (incomingLastTs === prevLastTs) {
+            // substitui apenas o último candle
+            const copy = prev.slice()
+            copy[copy.length - 1] = mapped[mapped.length - 1]
+            return copy
+          }
+
+          // se houver candles totalmente novos (timestamp maior que prevLastTs), apendamos apenas estes
+          const newItems = mapped.filter((m) => m.timestamp > prevLastTs)
+          if (newItems.length === 0) {
+            // nada novo
+            return prev
+          }
+
+          // append novos itens (mantendo ordenação)
+          const next = prev.concat(newItems)
+          // opcional: limitar crescimento (por exemplo se quiser manter apenas últimos N em memória)
+          return next
+        })
+
         setLastUpdatedAt(Date.now())
       } catch (pollError) {
         if ((pollError as Error).name === "AbortError") return
-        // silencio: tempo real nao deve travar UI
+        // silêncio intencional: tempo real nao deve travar UI
       }
     }
 
@@ -552,3 +633,6 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
     </div>
   )
 }
+
+// memoiza o componente para evitar re-renders desnecessários
+export default React.memo(PortfolioChart)

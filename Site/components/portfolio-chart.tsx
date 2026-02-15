@@ -118,6 +118,11 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
   }, [latestPoint])
 
   const isIntraday = useMemo(() => ["1minuto", "5minutos", "30minutos", "hr"].includes(period), [period])
+  const requestLimit = useMemo(() => {
+    if (isIntraday) return MAX_RENDER_BARS_INTRADAY
+    if (period === "full") return 2000
+    return null
+  }, [isIntraday, period])
 
   function destroyChart() {
     if (resizeObserverRef.current) {
@@ -152,7 +157,7 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
 
       try {
         const response = await fetch(
-          `/api/chart-data?coin=${encodeURIComponent(targetAsset.symbol)}&period=${encodeURIComponent(period)}&exchange=${encodeURIComponent(targetAsset.bestExchangeKey || "binance")}&quote=${encodeURIComponent(targetAsset.quoteAsset)}`,
+          `/api/chart-data?coin=${encodeURIComponent(targetAsset.symbol)}&period=${encodeURIComponent(period)}&exchange=${encodeURIComponent(targetAsset.bestExchangeKey || "binance")}&quote=${encodeURIComponent(targetAsset.quoteAsset)}${requestLimit ? `&limit=${requestLimit}` : ""}`,
           {
             cache: "no-store",
             signal: controller.signal,
@@ -200,7 +205,7 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
 
     loadChartData()
     return () => controller.abort()
-  }, [asset, period])
+  }, [asset, period, requestLimit])
 
   useEffect(() => {
     let cancelled = false
@@ -390,8 +395,9 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
 
     async function poll() {
       try {
+        if (document.hidden) return
         const response = await fetch(
-          `/api/chart-data?coin=${encodeURIComponent(targetAsset.symbol)}&period=${encodeURIComponent(period)}&exchange=${encodeURIComponent(targetAsset.bestExchangeKey || "binance")}&quote=${encodeURIComponent(targetAsset.quoteAsset)}`,
+          `/api/chart-data?coin=${encodeURIComponent(targetAsset.symbol)}&period=${encodeURIComponent(period)}&exchange=${encodeURIComponent(targetAsset.bestExchangeKey || "binance")}&quote=${encodeURIComponent(targetAsset.quoteAsset)}${requestLimit ? `&limit=${requestLimit}` : ""}`,
           {
             cache: "no-store",
             signal: controller.signal,
@@ -432,8 +438,6 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
       }
     }
 
-    // start quickly
-    void poll()
     realtimeTimerRef.current = window.setInterval(poll, intervalMs)
 
     return () => {
@@ -443,7 +447,7 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
         realtimeTimerRef.current = null
       }
     }
-  }, [asset?.id, period, isIntraday])
+  }, [asset?.id, period, isIntraday, requestLimit])
 
   useEffect(() => {
     if (!asset) return

@@ -3,6 +3,7 @@ import os
 import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from time import monotonic
 from typing import Literal, Optional
 
 import ccxt
@@ -88,6 +89,12 @@ DEFAULT_EXCHANGE = os.getenv("DEFAULT_EXCHANGE", "binance").strip().lower()
 DEFAULT_QUOTE = os.getenv("DEFAULT_QUOTE", "USDT").strip().upper()
 FALLBACK_EXCHANGES: tuple[str, ...] = ("binance", "bybit", "okx", "kraken", "coinbase")
 
+EXCHANGE_INSTANCE_TTL_SECONDS = int(os.getenv("EXCHANGE_INSTANCE_TTL_SECONDS", "900"))
+OHLCV_CACHE_MAX_ENTRIES = int(os.getenv("OHLCV_CACHE_MAX_ENTRIES", "512"))
+
+_EXCHANGE_INSTANCE_CACHE: dict[str, tuple[float, ccxt.Exchange]] = {}
+_OHLCV_CACHE: dict[tuple[str, str, str], tuple[float, tuple[str, list[list[float]]]]] = {}
+
 
 @app.get("/health")
 def health() -> dict:
@@ -172,9 +179,18 @@ def get_exchange(exchange_name: str) -> ccxt.Exchange:
     if exchange_cls is None:
         raise HTTPException(status_code=400, detail=f"Exchange '{exchange_name}' nao suportada pelo ccxt")
 
+    now = monotonic()
+    cached = _EXCHANGE_INSTANCE_CACHE.get(normalized)
+    if cached:
+        created_at, instance = cached
+        if now - created_at <= EXCHANGE_INSTANCE_TTL_SECONDS:
+            return instance
+
     exchange = exchange_cls({"enableRateLimit": True})
     if not exchange.has.get("fetchOHLCV"):
         raise HTTPException(status_code=400, detail=f"Exchange '{exchange_name}' nao suporta OHLCV")
+
+    _EXCHANGE_INSTANCE_CACHE[normalized] = (now, exchange)
     return exchange
 
 
@@ -216,14 +232,36 @@ def patch_exchange_urls_if_needed(exchange: ccxt.Exchange, exchange_name: str) -
     exchange.urls["api"] = api_urls
 
 
+def get_ohlcv_cache_ttl_seconds(config: PeriodConfig) -> int:
+    # Trade-off: keep endpoints responsive without serving stale candles for too long.
+    if config.key in ("1minuto", "5minutos", "30minutos", "hr"):
+        return 8
+    if config.key == "full":
+        return 300
+    return 60
+
+
 def fetch_market_ohlcv_with_fallback(exchange_name: str, symbol: str, config: PeriodConfig) -> tuple[str, list[list[float]]]:
     candidates = get_exchange_candidates(exchange_name)
     last_error: HTTPException | None = None
 
+    preferred = candidates[0]
+    cache_key = (preferred, symbol, config.key)
+    now = monotonic()
+    cached = _OHLCV_CACHE.get(cache_key)
+    if cached and cached[0] > now:
+        return cached[1]
+
+    ttl_seconds = get_ohlcv_cache_ttl_seconds(config)
+
     for candidate in candidates:
         try:
             data = fetch_market_ohlcv_single(candidate, symbol, config)
-            return candidate, data
+            result = (candidate, data)
+            if len(_OHLCV_CACHE) >= OHLCV_CACHE_MAX_ENTRIES:
+                _OHLCV_CACHE.clear()
+            _OHLCV_CACHE[cache_key] = (now + ttl_seconds, result)
+            return result
         except HTTPException as exc:
             last_error = exc
             # 400: erro de parametro/exchange nao deve continuar fallback.

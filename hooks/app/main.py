@@ -2,7 +2,8 @@ import asyncio
 import contextlib
 import logging
 from datetime import datetime, timezone
-from typing import Optional
+from dataclasses import dataclass
+from typing import Dict, Optional
 
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Path
@@ -18,6 +19,53 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="Crypto Multi-Exchange Webhook Snapshot", version="2.0.0")
 
 _polling_task: Optional[asyncio.Task] = None
+
+
+@dataclass
+class SnapshotCacheEntry:
+    created_at: float
+    expires_at: float
+    value: MarketSnapshotResponse
+
+
+_snapshot_cache: Dict[str, SnapshotCacheEntry] = {}
+_snapshot_inflight: Dict[str, asyncio.Task] = {}
+
+
+def _snapshot_cache_key(
+    exchange: str,
+    quote_asset: Optional[str],
+    max_pairs: Optional[int],
+    top_assets_only: Optional[bool],
+) -> str:
+    return f"{exchange}|{(quote_asset or '').upper()}|{max_pairs or ''}|{str(bool(top_assets_only)).lower()}"
+
+
+async def _refresh_snapshot(
+    *,
+    key: str,
+    exchange: str,
+    settings: Settings,
+    quote_asset: Optional[str],
+    max_pairs: Optional[int],
+    top_assets_only: Optional[bool],
+) -> MarketSnapshotResponse:
+    response = await build_response(
+        exchange=exchange,
+        settings=settings,
+        quote_asset=quote_asset,
+        max_pairs=max_pairs,
+        top_assets_only=top_assets_only,
+    )
+
+    now = asyncio.get_running_loop().time()
+    ttl = max(1, int(settings.snapshot_cache_ttl_seconds))
+    _snapshot_cache[key] = SnapshotCacheEntry(
+        created_at=now,
+        expires_at=now + ttl,
+        value=response,
+    )
+    return response
 
 
 def _normalize_exchange_or_400(exchange: str) -> str:
@@ -68,13 +116,62 @@ async def get_markets_for_exchange(
     settings: Settings,
 ) -> MarketSnapshotResponse:
     normalized_exchange = _normalize_exchange_or_400(exchange)
-    return await build_response(
+    key = _snapshot_cache_key(
         exchange=normalized_exchange,
-        settings=settings,
         quote_asset=quote_asset,
         max_pairs=max_pairs,
         top_assets_only=top_assets_only,
     )
+
+    now = asyncio.get_running_loop().time()
+    entry = _snapshot_cache.get(key)
+    if entry and entry.expires_at > now:
+        return entry.value
+
+    # Serve stale-while-revalidate to keep the UI responsive.
+    swr = max(0, int(settings.snapshot_cache_swr_seconds))
+    if entry and (now - entry.created_at) <= swr:
+        if key not in _snapshot_inflight:
+            task = asyncio.create_task(
+                _refresh_snapshot(
+                    key=key,
+                    exchange=normalized_exchange,
+                    settings=settings,
+                    quote_asset=quote_asset,
+                    max_pairs=max_pairs,
+                    top_assets_only=top_assets_only,
+                )
+            )
+
+            def _done(t: asyncio.Task) -> None:
+                _snapshot_inflight.pop(key, None)
+                with contextlib.suppress(Exception):
+                    t.result()
+
+            task.add_done_callback(_done)
+            _snapshot_inflight[key] = task
+
+        return entry.value
+
+    # No cache (or too old): block until we refresh.
+    if key in _snapshot_inflight:
+        return await _snapshot_inflight[key]
+
+    task = asyncio.create_task(
+        _refresh_snapshot(
+            key=key,
+            exchange=normalized_exchange,
+            settings=settings,
+            quote_asset=quote_asset,
+            max_pairs=max_pairs,
+            top_assets_only=top_assets_only,
+        )
+    )
+    _snapshot_inflight[key] = task
+    try:
+        return await task
+    finally:
+        _snapshot_inflight.pop(key, None)
 
 
 @app.get("/health")

@@ -14,6 +14,7 @@ interface TopAssetsResponse {
 }
 
 const DEFAULT_PERIOD = "dia"
+const TOP_ASSETS_LOCAL_CACHE_KEY = "cryptobug:top-assets-cache:v1"
 
 export function TopAssetsDashboard() {
   const [assets, setAssets] = useState<RankedAsset[]>([])
@@ -21,6 +22,7 @@ export function TopAssetsDashboard() {
   const [modalAsset, setModalAsset] = useState<RankedAsset | null>(null)
   const [period, setPeriod] = useState(DEFAULT_PERIOD)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [generatedAt, setGeneratedAt] = useState<string | null>(null)
 
@@ -29,8 +31,10 @@ export function TopAssetsDashboard() {
     [assets, selectedAssetId],
   )
 
-  const loadTopAssets = useCallback(async () => {
-    setLoading(true)
+  const loadTopAssets = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = Boolean(options?.silent)
+    if (!silent) setLoading(true)
+    setRefreshing(silent)
     setError(null)
 
     try {
@@ -45,6 +49,12 @@ export function TopAssetsDashboard() {
       setAssets(ranked)
       setGeneratedAt(payload.generatedAt ?? null)
 
+      try {
+        localStorage.setItem(TOP_ASSETS_LOCAL_CACHE_KEY, JSON.stringify({ generatedAt: payload.generatedAt, assets: ranked }))
+      } catch {
+        // ignore
+      }
+
       setSelectedAssetId((currentId) => {
         if (currentId && ranked.some((item) => item.id === currentId)) {
           return currentId
@@ -56,10 +66,30 @@ export function TopAssetsDashboard() {
       setError(fetchError instanceof Error ? fetchError.message : "Erro desconhecido")
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }, [])
 
   useEffect(() => {
+    // Show cached Top Assets immediately (best-effort), then refresh in background.
+    try {
+      const raw = localStorage.getItem(TOP_ASSETS_LOCAL_CACHE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw) as { generatedAt?: string; assets?: RankedAsset[] }
+        if (Array.isArray(parsed.assets) && parsed.assets.length > 0) {
+          const cachedAssets = parsed.assets
+          setAssets(cachedAssets)
+          setGeneratedAt(typeof parsed.generatedAt === "string" ? parsed.generatedAt : null)
+          setSelectedAssetId((currentId) => currentId ?? cachedAssets[0]?.id ?? null)
+          setLoading(false)
+          void loadTopAssets({ silent: true })
+          return
+        }
+      }
+    } catch {
+      // ignore cache
+    }
+
     loadTopAssets()
   }, [loadTopAssets])
 
@@ -81,9 +111,10 @@ export function TopAssetsDashboard() {
         <div className="text-xs text-muted-foreground">
           Ranking calculado pelos hooks com lucro conservador (custos reais + buffer de seguranca).
           {generatedAt ? ` Atualizado em ${new Date(generatedAt).toLocaleString()}.` : ""}
+          {refreshing ? " Atualizando..." : ""}
         </div>
         <button
-          onClick={loadTopAssets}
+          onClick={() => loadTopAssets()}
           className="px-3 py-1.5 rounded-md border border-primary/35 bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors"
           type="button"
         >
@@ -102,7 +133,7 @@ export function TopAssetsDashboard() {
           <PortfolioChart asset={selectedAsset} period={period} onChangePeriod={setPeriod} />
         </div>
         <div className="lg:col-span-2 lg:h-[580px]">
-          {loading ? (
+          {loading && assets.length === 0 ? (
             <div className="rounded-2xl border border-border bg-card p-6 h-full text-sm text-muted-foreground overflow-hidden">
               Carregando Top 30 com dados do hooks...
             </div>

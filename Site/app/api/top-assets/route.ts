@@ -31,6 +31,11 @@ interface ExchangeCandidate {
   spreadPercent: number
 }
 
+type TopAssetsCacheEntry = { expiresAt: number; payload: unknown }
+let cachedTopAssets: TopAssetsCacheEntry | null = null
+
+const TOP_ASSETS_CACHE_TTL_MS = Math.max(3_000, Number.parseInt(process.env.TOP_ASSETS_CACHE_TTL_MS ?? "15000", 10) || 15000)
+
 const MAX_PAIRS = Number.parseInt(process.env.TOP_ASSETS_MAX_PAIRS ?? "3500", 10)
 const TOP_ASSETS_EXCHANGES: SupportedExchange[] = SUPPORTED_EXCHANGES.filter((exchange) => exchange !== "coinbase")
 
@@ -94,13 +99,13 @@ function buildMarketIndex(items: HookMarketItem[]): Map<string, HookMarketItem[]
 }
 
 async function fetchExchangeSnapshot(exchange: SupportedExchange): Promise<HookSnapshotResponse | null> {
-  const url = `${REMOTE_ENDPOINTS.hooks}/markets/${exchange}?max_pairs=${MAX_PAIRS}`
+  const url = `${REMOTE_ENDPOINTS.hooks}/markets/${exchange}?max_pairs=${MAX_PAIRS}&top_assets_only=true`
 
   try {
     const response = await fetch(url, {
       headers: { Accept: "application/json" },
       cache: "no-store",
-      signal: AbortSignal.timeout(20_000),
+      signal: AbortSignal.timeout(8_000),
     })
 
     if (!response.ok) {
@@ -300,7 +305,13 @@ function rankAssetFromCandidates(
 }
 
 export async function GET() {
-  const snapshots = await Promise.all(TOP_ASSETS_EXCHANGES.map((exchange) => fetchExchangeSnapshot(exchange)))
+  const now = Date.now()
+  if (cachedTopAssets && cachedTopAssets.expiresAt > now) {
+    return NextResponse.json(cachedTopAssets.payload, { status: 200 })
+  }
+
+  const settled = await Promise.allSettled(TOP_ASSETS_EXCHANGES.map((exchange) => fetchExchangeSnapshot(exchange)))
+  const snapshots = settled.map((item) => (item.status === "fulfilled" ? item.value : null))
 
   const indexesByExchange = new Map<SupportedExchange, Map<string, HookMarketItem[]>>()
 
@@ -336,9 +347,12 @@ export async function GET() {
     rank: index + 1,
   }))
 
-  return NextResponse.json({
+  const payload = {
     generatedAt: new Date().toISOString(),
     total: rankedAssets.length,
     assets: rankedAssets,
-  })
+  }
+
+  cachedTopAssets = { expiresAt: now + TOP_ASSETS_CACHE_TTL_MS, payload }
+  return NextResponse.json(payload)
 }

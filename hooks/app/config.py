@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     default_max_pairs: Optional[int] = None
     default_top_assets_only: bool = True
 
+    # Cache (em memoria) para acelerar /markets/{exchange}
+    snapshot_cache_ttl_seconds: int = 20
+    snapshot_cache_swr_seconds: int = 120
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -10,6 +10,7 @@ import { theme } from '@/constants/theme';
 import { AssetChartCard } from '@/components/crypto/AssetChartCard';
 
 const DEFAULT_PERIOD = 'dia';
+const DEFAULT_VISIBLE_ROWS = 6;
 
 function formatPct(value: number): string {
   const signal = value > 0 ? '+' : '';
@@ -23,6 +24,7 @@ export function TopAssetsDashboard({ onOpenAsset }: { onOpenAsset: (asset: Ranke
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [generatedAt, setGeneratedAt] = React.useState<string | null>(null);
+  const [showAll, setShowAll] = React.useState(false);
 
   const selectedAsset = React.useMemo(
     () => assets.find((asset) => asset.id === selectedAssetId) ?? null,
@@ -69,6 +71,11 @@ export function TopAssetsDashboard({ onOpenAsset }: { onOpenAsset: (asset: Ranke
     setSelectedAssetId(asset.id);
   }
 
+  const visibleAssets = React.useMemo(() => {
+    if (showAll) return assets;
+    return assets.slice(0, DEFAULT_VISIBLE_ROWS);
+  }, [assets, showAll]);
+
   return (
     <View style={styles.wrap}>
       <View style={styles.topRow}>
@@ -107,7 +114,13 @@ export function TopAssetsDashboard({ onOpenAsset }: { onOpenAsset: (asset: Ranke
       <GlassCard style={styles.tableCard} intensity={20}>
         <View style={styles.tableHeader}>
           <Text style={styles.tableTitle}>Top 30</Text>
-          <Text style={styles.tableMeta}>{loading ? 'Carregando...' : `${assets.length} ativos`}</Text>
+          <Text style={styles.tableMeta}>
+            {loading
+              ? 'Carregando...'
+              : assets.length <= DEFAULT_VISIBLE_ROWS || showAll
+                ? `${assets.length} ativos`
+                : `${DEFAULT_VISIBLE_ROWS}/${assets.length} ativos`}
+          </Text>
         </View>
 
         {loading && assets.length === 0 ? (
@@ -117,7 +130,7 @@ export function TopAssetsDashboard({ onOpenAsset }: { onOpenAsset: (asset: Ranke
           </View>
         ) : (
           <View style={styles.rows}>
-            {assets.map((asset) => {
+            {visibleAssets.map((asset) => {
               const active = asset.id === selectedAssetId;
               const profit = asset.guaranteedProfit ? asset.guaranteedProfitPercent : asset.netProfitPercent;
               const profitColor = profit >= 0 ? theme.colors.primary : '#FB7185';
@@ -155,6 +168,17 @@ export function TopAssetsDashboard({ onOpenAsset }: { onOpenAsset: (asset: Ranke
             })}
           </View>
         )}
+
+        {assets.length > DEFAULT_VISIBLE_ROWS ? (
+          <View style={styles.moreRow}>
+            <Button
+              label={showAll ? 'Mostrar menos' : 'Mostrar mais'}
+              onPress={() => setShowAll((v) => !v)}
+              variant="secondary"
+              style={{ paddingVertical: 10, paddingHorizontal: 12 }}
+            />
+          </View>
+        ) : null}
       </GlassCard>
     </View>
   );
@@ -220,6 +244,13 @@ const styles = StyleSheet.create({
   rows: {
     paddingBottom: theme.space.md,
   },
+  moreRow: {
+    paddingHorizontal: theme.space.lg,
+    paddingBottom: theme.space.lg,
+    paddingTop: theme.space.sm,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -281,4 +312,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

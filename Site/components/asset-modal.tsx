@@ -5,6 +5,7 @@ import { gsap } from "gsap"
 
 import type { DecisionPayload, RankedAsset } from "@/lib/types"
 import { useAuth } from "@/components/auth-provider"
+import { labelSidePt, labelSideShortPt, labelStatusPt } from "@/lib/pt"
 
 interface AssetModalProps {
   asset: RankedAsset | null
@@ -195,12 +196,12 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
 
       const status = payload?.status ?? "OK"
       if (status === "DRY_RUN") {
-        setTradeMessage("DRY_RUN: ordem registrada apenas no historico (nao enviada a exchange). Configure TRADING_DRY_RUN=false no servico /DB e reinicie.")
+        setTradeMessage("SIMULACAO: ordem registrada apenas no historico (nao enviada a exchange). Configure TRADING_DRY_RUN=false no servico /DB e reinicie.")
       } else if (status === "EXECUTED") {
-        const extra = payload?.exchangeOrderId ? ` | order: ${payload.exchangeOrderId}` : ""
-        setTradeMessage(`EXECUTED: ${payload?.id ?? "-"}${extra}`)
+        const extra = payload?.exchangeOrderId ? ` | ordem: ${payload.exchangeOrderId}` : ""
+        setTradeMessage(`EXECUTADA: ${payload?.id ?? "-"}${extra}`)
       } else {
-        setTradeMessage(`Ordem registrada: ${status} (${payload?.id ?? "-"})`)
+        setTradeMessage(`Ordem registrada: ${labelStatusPt(status)} (${payload?.id ?? "-"})`)
       }
       setTradeAmount("")
     } catch (tradeError) {
@@ -248,7 +249,7 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="rounded-xl bg-secondary/50 p-3">
                   <div className="text-muted-foreground text-xs uppercase tracking-wider">Acao</div>
-                  <div className={`text-xl font-bold mt-1 ${actionColor}`}>{decision.acao}</div>
+                  <div className={`text-xl font-bold mt-1 ${actionColor}`}>{labelSidePt(decision.acao)}</div>
                 </div>
                 <div className="rounded-xl bg-secondary/50 p-3">
                   <div className="text-muted-foreground text-xs uppercase tracking-wider">Confianca</div>
@@ -277,9 +278,9 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
               <p className="text-xs text-muted-foreground">Resultado informativo. Sempre valide risco e custos antes de operar.</p>
 
               <div className="rounded-xl border border-border bg-secondary/20 p-4">
-                <h3 className="text-foreground font-semibold mb-2">Acoes (BUY/SELL)</h3>
+                <h3 className="text-foreground font-semibold mb-2">Acoes (Comprar/Vender)</h3>
                 <p className="text-xs text-muted-foreground mb-3">
-                  Isso registra e tenta executar a ordem via suas credenciais vinculadas. Por seguranca, o servico /DB pode estar em modo DRY_RUN.
+                  Isso registra e tenta executar a ordem via suas credenciais vinculadas. Por seguranca, o servico /DB pode estar em modo simulacao.
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -287,12 +288,12 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
                     <div className="text-[11px] text-muted-foreground mb-1">Exchange (auto)</div>
                     <div className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
                       <div className={`flex items-center justify-between gap-2 ${recommendedSide === "BUY" ? "text-emerald-200" : "text-foreground"}`}>
-                        <span className="font-semibold">BUY</span>
+                        <span className="font-semibold">{labelSideShortPt("BUY")}</span>
                         <span className="truncate">{buyExchange.label}</span>
                         <span className={`text-[11px] ${buyLinked ? "text-emerald-300" : "text-rose-200"}`}>{buyLinked ? "Vinculada" : "Nao vinculada"}</span>
                       </div>
                       <div className={`mt-1 flex items-center justify-between gap-2 ${recommendedSide === "SELL" ? "text-rose-200" : "text-foreground"}`}>
-                        <span className="font-semibold">SELL</span>
+                        <span className="font-semibold">{labelSideShortPt("SELL")}</span>
                         <span className="truncate">{sellExchange.label}</span>
                         <span className={`text-[11px] ${sellLinked ? "text-emerald-300" : "text-rose-200"}`}>{sellLinked ? "Vinculada" : "Nao vinculada"}</span>
                       </div>
@@ -314,11 +315,11 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
                     ) : linkedExchanges.length === 0 || (recommendedSide === "BUY" && !buyLinked) || (recommendedSide === "SELL" && !sellLinked) ? (
                       <div className="mt-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-2 text-[11px] text-rose-100">
                         {linkedExchanges.length === 0
-                          ? "Nenhuma exchange vinculada. Vincule suas APIs para habilitar BUY/SELL."
+                          ? "Nenhuma exchange vinculada. Vincule suas APIs para habilitar compra/venda."
                           : recommendedSide === "BUY"
-                            ? `BUY recomendado na ${buyExchange.label}. Vincule para operar.`
+                            ? `Compra recomendada na ${buyExchange.label}. Vincule para operar.`
                             : recommendedSide === "SELL"
-                              ? `SELL recomendado na ${sellExchange.label}. Vincule para operar.`
+                              ? `Venda recomendada na ${sellExchange.label}. Vincule para operar.`
                               : "Vincule a exchange recomendada para operar."}
                         <button
                           type="button"
@@ -350,7 +351,7 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
                       } disabled:opacity-60`}
                       type="button"
                     >
-                      BUY
+                      COMPRAR
                     </button>
                     <button
                       disabled={tradePending || !user || !sellLinked}
@@ -360,7 +361,7 @@ export function AssetModal({ asset, onClose }: AssetModalProps) {
                       } disabled:opacity-60`}
                       type="button"
                     >
-                      SELL
+                      VENDER
                     </button>
                   </div>
                 </div>

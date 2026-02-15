@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { gsap } from "gsap"
 
 import type { RankedAsset } from "@/lib/types"
+import { formatPercentPt, formatUsdPt } from "@/lib/pt"
 
 const DEFAULT_VISIBLE_ASSETS = 7
 
@@ -11,20 +12,6 @@ interface AssetTableProps {
   assets: RankedAsset[]
   selectedAssetId: string | null
   onSelect: (asset: RankedAsset) => void
-}
-
-function formatPercent(value: number): string {
-  const signal = value > 0 ? "+" : ""
-  return `${signal}${value.toFixed(3)}%`
-}
-
-function formatPrice(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return "-"
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: value < 1 ? 6 : 2,
-  }).format(value)
 }
 
 export function AssetTable({ assets, selectedAssetId, onSelect }: AssetTableProps) {
@@ -79,10 +66,10 @@ export function AssetTable({ assets, selectedAssetId, onSelect }: AssetTableProp
 
                   <div className="text-right shrink-0">
                     <div className={`text-sm font-mono font-bold ${asset.guaranteedProfitPercent >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                      {asset.available ? formatPercent(asset.guaranteedProfitPercent) : "N/A"}
+                      {asset.available ? formatPercentPt(asset.guaranteedProfitPercent) : "N/D"}
                     </div>
                     <div className="text-[11px] text-muted-foreground font-mono">
-                      {asset.guaranteedProfit ? "Garantido" : "Conservador"} | {formatPrice(asset.latestPrice)}
+                      {asset.guaranteedProfit ? "Garantido" : "Conservador"} | {formatUsdPt(asset.latestPrice)}
                     </div>
                   </div>
                 </div>

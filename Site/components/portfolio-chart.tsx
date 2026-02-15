@@ -5,6 +5,7 @@ import { gsap } from "gsap"
 import type { BusinessDay, CandlestickData, HistogramData, IChartApi, ISeriesApi, Time } from "lightweight-charts"
 
 import type { RankedAsset } from "@/lib/types"
+import { formatPercentPt, formatUsdPt } from "@/lib/pt"
 
 const PERIOD_OPTIONS = [
   { key: "1minuto", label: "1m" },
@@ -87,17 +88,11 @@ function toChartTime(candle: ChartCandle, intraday: boolean): Time | null {
 }
 
 function formatPrice(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return "-"
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: value < 1 ? 6 : 2,
-  }).format(value)
+  return formatUsdPt(value)
 }
 
 function formatPercent(value: number): string {
-  const signal = value > 0 ? "+" : ""
-  return `${signal}${value.toFixed(3)}%`
+  return formatPercentPt(value)
 }
 
 export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChartProps) {
@@ -521,7 +516,7 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
     <div className="rounded-2xl border border-border bg-card p-6 flex flex-col h-full min-h-[580px]">
       <div ref={headerRef} className="flex items-start justify-between mb-3 gap-4">
         <div>
-          <p className="text-muted-foreground text-xs uppercase tracking-widest mb-1">Top Asset Selection</p>
+          <p className="text-muted-foreground text-xs uppercase tracking-widest mb-1">Selecao de Top Assets</p>
           <h2 className="text-3xl font-bold text-foreground font-mono">
             {asset ? `${asset.name} (${asset.symbol})` : "Selecione uma moeda"}
           </h2>
@@ -541,8 +536,8 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
                 {formatPercent(asset.guaranteedProfitPercent)}
               </span>
             </div>
-            <span className="text-muted-foreground text-xs">
-              {asset.guaranteedProfit ? "Lucro garantido (conservador) | " : "Lucro conservador | "}
+              <span className="text-muted-foreground text-xs">
+              {asset.guaranteedProfit ? "Lucro conservador garantido | " : "Lucro conservador | "}
               {latestPoint
                 ? `Ultimo: ${formatPrice(latestPoint.close)} | ${formatPercent(latestVariation)}`
                 : `Preco: ${formatPrice(asset.latestPrice)}`}
@@ -601,7 +596,8 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
             {asset.estimatedCostsPercent.toFixed(3)}%.
           </div>
           <div className="shrink-0 font-mono">
-            Tempo real: {isIntraday ? "ON" : "LENTO"} {lastUpdatedAt ? `| ${new Date(lastUpdatedAt).toLocaleTimeString()}` : ""}
+            Tempo real: {isIntraday ? "LIGADO" : "LENTO"}{" "}
+            {lastUpdatedAt ? `| ${new Date(lastUpdatedAt).toLocaleTimeString("pt-BR")}` : ""}
           </div>
         </div>
       ) : null}

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { useAuth } from "@/components/auth-provider"
+import { labelModePt, labelSidePt, labelStatusPt } from "@/lib/pt"
 
 interface TradeActionItem {
   id: string
@@ -132,7 +133,7 @@ export function TradeOngoing() {
       if (!baseUrl) return
 
       const ok = window.confirm(
-        `Vender (market) ${formatAmount(position.openAmount)} do par ${position.symbol} na ${position.exchange}?`,
+        `Vender (ordem a mercado) ${formatAmount(position.openAmount)} do par ${position.symbol} na ${position.exchange}?`,
       )
       if (!ok) return
 
@@ -157,7 +158,7 @@ export function TradeOngoing() {
         })
 
         const payload = (await response.json().catch(() => null)) as { error?: string; status?: string } | null
-        if (!response.ok) throw new Error(payload?.error || "Falha ao enviar STOP/SELL")
+        if (!response.ok) throw new Error(payload?.error || "Falha ao enviar venda (stop)")
 
         await loadActions()
       } catch (e) {
@@ -187,7 +188,7 @@ export function TradeOngoing() {
         <div>
           <h2 className="text-xl font-bold text-foreground">Em Andamento</h2>
           <p className="text-xs text-muted-foreground mt-1">
-            Posições abertas são calculadas a partir das últimas 200 ações (EXECUTED/DRY_RUN). Atualiza a cada 10s.
+            Posições abertas são calculadas a partir das últimas 200 ações (executadas e simuladas). Atualiza a cada 10s.
           </p>
         </div>
         <div className="text-xs text-muted-foreground font-mono">
@@ -213,8 +214,8 @@ export function TradeOngoing() {
           <tbody>
             {openPositions.map((pos) => (
               <tr key={pos.key} className="border-b border-border/60">
-                <td className="py-2 text-muted-foreground font-mono">{new Date(pos.lastUpdatedAt).toLocaleString()}</td>
-                <td className={`py-2 font-semibold ${pos.mode === "REAL" ? "text-emerald-300" : "text-amber-200"}`}>{pos.mode}</td>
+                <td className="py-2 text-muted-foreground font-mono">{new Date(pos.lastUpdatedAt).toLocaleString("pt-BR")}</td>
+                <td className={`py-2 font-semibold ${pos.mode === "REAL" ? "text-emerald-300" : "text-amber-200"}`}>{labelModePt(pos.mode)}</td>
                 <td className="py-2 text-foreground">{pos.exchange}</td>
                 <td className="py-2 text-foreground font-mono">{pos.symbol}</td>
                 <td className="py-2 text-foreground font-mono">{formatAmount(pos.openAmount)}</td>
@@ -242,8 +243,8 @@ export function TradeOngoing() {
       </div>
 
       <div className="mt-6 overflow-auto">
-        <div className="text-sm font-semibold text-foreground">Ordens pendentes / DRY_RUN</div>
-        <p className="text-xs text-muted-foreground mt-1">Aqui ficam suas acoes ainda nao finalizadas (PENDING/DRY_RUN).</p>
+        <div className="text-sm font-semibold text-foreground">Ordens pendentes / simulacao</div>
+        <p className="text-xs text-muted-foreground mt-1">Aqui ficam suas acoes ainda nao finalizadas (pendentes/simulacao).</p>
 
         <table className="w-full text-sm mt-2">
           <thead className="text-xs text-muted-foreground">
@@ -260,15 +261,15 @@ export function TradeOngoing() {
           <tbody>
             {pendingActions.map((item) => (
               <tr key={item.id} className="border-b border-border/60">
-                <td className="py-2 text-muted-foreground font-mono">{new Date(item.createdAt).toLocaleString()}</td>
+                <td className="py-2 text-muted-foreground font-mono">{new Date(item.createdAt).toLocaleString("pt-BR")}</td>
                 <td className="py-2 text-foreground">{item.exchange}</td>
                 <td className="py-2 text-foreground font-mono">{item.symbol}</td>
-                <td className={`py-2 font-semibold ${item.side === "BUY" ? "text-emerald-300" : "text-rose-300"}`}>{item.side}</td>
+                <td className={`py-2 font-semibold ${item.side === "BUY" ? "text-emerald-300" : "text-rose-300"}`}>{labelSidePt(item.side)}</td>
                 <td className="py-2 text-muted-foreground">{item.orderType}</td>
                 <td className="py-2 text-foreground font-mono">{item.amount}</td>
                 <td className="py-2 text-muted-foreground">
-                  {item.status}
-                  {item.exchangeOrderId ? ` (order: ${item.exchangeOrderId})` : ""}
+                  {labelStatusPt(item.status)}
+                  {item.exchangeOrderId ? ` (ordem: ${item.exchangeOrderId})` : ""}
                   {item.error ? ` (${item.error})` : ""}
                 </td>
               </tr>

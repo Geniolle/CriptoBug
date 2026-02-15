@@ -126,7 +126,7 @@ export function ProfileModal({ open, initialTab, onClose }: ProfileModalProps) {
                 <div className="rounded-xl border border-border bg-background/30 p-4">
                   <div className="text-xs text-muted-foreground">Conta</div>
                   <div className="mt-1 text-sm text-foreground">
-                    Conecte suas exchanges na aba <span className="font-semibold">APIs</span> para habilitar BUY/SELL e historico.
+                    Conecte suas exchanges na aba <span className="font-semibold">APIs</span> para habilitar compra/venda e historico.
                   </div>
                 </div>
 
@@ -138,14 +138,14 @@ export function ProfileModal({ open, initialTab, onClose }: ProfileModalProps) {
                   className="w-full rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200 hover:bg-rose-500/20 transition-colors disabled:opacity-60"
                   type="button"
                 >
-                  {pending ? "Saindo..." : "Logout"}
+                  {pending ? "Saindo..." : "Sair"}
                 </button>
               </div>
             ) : (
               <div className="mt-4">
                 <div className="rounded-xl border border-border bg-background/30 p-4">
                   <div className="text-sm text-foreground font-semibold">APIs</div>
-                  <div className="mt-1 text-xs text-muted-foreground">Vincule suas exchanges para habilitar BUY/SELL e historico.</div>
+                  <div className="mt-1 text-xs text-muted-foreground">Vincule suas exchanges para habilitar compra/venda e historico.</div>
                 </div>
 
                 <AccountConnectionsPanel userEmail={email} enabled={open && tab === "apis"} />

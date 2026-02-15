@@ -116,6 +116,7 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
   const didAutoZoomRef = useRef(false)
   const realtimeTimerRef = useRef<number | null>(null)
+  const lastAssetIdRef = useRef<string | null>(null)
 
   const latestPoint = useMemo(() => (candles.length > 0 ? candles[candles.length - 1] : null), [candles])
 
@@ -149,6 +150,15 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
     didAutoZoomRef.current = false
   }
 
+  // Tear down chart when user unselects an asset (component still mounted).
+  useEffect(() => {
+    if (asset) return
+    destroyChart()
+    setCandles([])
+    setError(null)
+    setLoading(false)
+  }, [asset])
+
   useEffect(() => {
     if (!asset) {
       setCandles([])
@@ -158,6 +168,15 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
 
     const controller = new AbortController()
     didAutoZoomRef.current = false
+    lastAssetIdRef.current = targetAsset.id
+
+    // Clear old series data immediately so switching assets doesn't keep stale candles.
+    try {
+      candleSeriesRef.current?.setData([])
+      volumeSeriesRef.current?.setData([])
+    } catch {
+      // ignore
+    }
 
     async function loadChartData() {
       setLoading(true)
@@ -222,18 +241,8 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
     let cancelled = false
 
     async function buildClientChart() {
-      if (!asset || !chartContainerRef.current) {
-        destroyChart()
-        return
-      }
-
-      if (chartApiRef.current) {
-        return
-      }
-
-      if (candles.length === 0) {
-        return
-      }
+      if (!asset) return
+      if (!chartContainerRef.current) return
 
       try {
         const chartsModule = await import("lightweight-charts")
@@ -254,6 +263,17 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
         }
 
         if (cancelled || !chartContainerRef.current) return
+
+        // Chart already exists: only refresh options that depend on timeframe.
+        if (chartApiRef.current) {
+          chartApiRef.current.applyOptions({
+            timeScale: {
+              timeVisible: isIntraday,
+              secondsVisible: false,
+            },
+          })
+          return
+        }
 
         const container = chartContainerRef.current
         const width = Math.max(320, container.clientWidth)
@@ -334,15 +354,22 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
 
     return () => {
       cancelled = true
-      destroyChart()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [asset?.id, period, isIntraday, hasCandles])
+  }, [asset?.id, period, isIntraday])
 
   useEffect(() => {
     if (!chartReady) return
     if (!chartApiRef.current || !candleSeriesRef.current || !volumeSeriesRef.current) return
-    if (candles.length === 0) return
+    if (candles.length === 0) {
+      try {
+        candleSeriesRef.current.setData([])
+        volumeSeriesRef.current.setData([])
+      } catch {
+        // ignore
+      }
+      return
+    }
 
     try {
       const renderCandles = isIntraday ? candles.slice(-MAX_RENDER_BARS_INTRADAY) : candles
@@ -545,16 +572,20 @@ export function PortfolioChart({ asset, period, onChangePeriod }: PortfolioChart
           <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
             Aguardando selecao de ativo para carregar grafico...
           </div>
-        ) : loading ? (
-          <div className="h-full flex items-center justify-center text-muted-foreground text-sm">Carregando grafico...</div>
-        ) : error ? (
-          <div className="h-full flex items-center justify-center text-rose-300 text-sm">{error}</div>
-        ) : candles.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-muted-foreground text-sm">Sem dados para este periodo.</div>
         ) : (
           <div className="h-full w-full relative">
             <div ref={chartContainerRef} className="h-full w-full" />
-            {!chartReady ? (
+            {loading ? (
+              <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm bg-background/35">
+                Carregando grafico...
+              </div>
+            ) : error ? (
+              <div className="absolute inset-0 flex items-center justify-center text-rose-300 text-sm bg-background/35">{error}</div>
+            ) : candles.length === 0 ? (
+              <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm bg-background/35">
+                Sem dados para este periodo.
+              </div>
+            ) : !chartReady ? (
               <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm bg-background/35">
                 Preparando grafico...
               </div>

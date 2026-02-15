@@ -39,7 +39,7 @@ export function ProfileModal({ open, initialTab, onClose }: ProfileModalProps) {
       if (event.key === "Escape") onClose()
     }
     document.addEventListener("keydown", handleEsc)
-    document.body.style.overflow = "hidden"
+    document.body.style.overflow = "overflow-hidden"
     return () => {
       document.removeEventListener("keydown", handleEsc)
       document.body.style.overflow = ""
@@ -71,9 +71,9 @@ export function ProfileModal({ open, initialTab, onClose }: ProfileModalProps) {
     >
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
-      <div className="relative z-10 w-full max-w-4xl max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-card shadow-2xl">
+      <div className="relative z-10 w-full max-w-4xl max-h-[85vh] rounded-2xl border border-border bg-card shadow-2xl flex flex-col">
           <div className="flex items-start justify-between gap-4 border-b border-border p-5">
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex-1 overflow-y-auto p-5">
               {user.photoURL ? (
                 <img src={user.photoURL} alt={displayName} className="h-10 w-10 rounded-full" />
               ) : (

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { useAuth } from "@/components/auth-provider"
-import { labelModePt, labelSidePt, labelStatusPt } from "@/lib/pt"
+import { labelModePt, labelOrderTypePt, labelSidePt, labelStatusPt } from "@/lib/pt"
 
 interface TradeActionItem {
   id: string
@@ -265,7 +265,7 @@ export function TradeOngoing() {
                 <td className="py-2 text-foreground">{item.exchange}</td>
                 <td className="py-2 text-foreground font-mono">{item.symbol}</td>
                 <td className={`py-2 font-semibold ${item.side === "BUY" ? "text-emerald-300" : "text-rose-300"}`}>{labelSidePt(item.side)}</td>
-                <td className="py-2 text-muted-foreground">{item.orderType}</td>
+                <td className="py-2 text-muted-foreground">{labelOrderTypePt(item.orderType)}</td>
                 <td className="py-2 text-foreground font-mono">{item.amount}</td>
                 <td className="py-2 text-muted-foreground">
                   {labelStatusPt(item.status)}

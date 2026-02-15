@@ -28,6 +28,12 @@ export function labelModePt(mode: string): string {
   return mode
 }
 
+export function labelOrderTypePt(orderType: string): string {
+  if (orderType === "market") return "mercado"
+  if (orderType === "limit") return "limite"
+  return orderType
+}
+
 export function formatUsdPt(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return "-"
   return new Intl.NumberFormat("pt-BR", {
@@ -46,4 +52,3 @@ export function formatPercentPt(value: number, fractionDigits = 3): string {
   }).format(value)
   return `${sign}${formatted}%`
 }
-

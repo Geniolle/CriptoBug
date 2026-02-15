@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { REMOTE_ENDPOINTS } from "@/lib/endpoints"
+import { labelSidePt } from "@/lib/pt"
 
 export const dynamic = "force-dynamic"
 
@@ -34,7 +35,13 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json(payload, { status: 200 })
+    // Keep the raw action (BUY/SELL/HOLD) for compatibility, but also expose a PT label
+    // so the network payload is fully PT-friendly for the client.
+    const anyPayload = payload as Record<string, unknown>
+    const acaoRaw = typeof anyPayload.acao === "string" ? anyPayload.acao : ""
+    const acao_pt = acaoRaw ? labelSidePt(acaoRaw) : ""
+
+    return NextResponse.json({ ...anyPayload, acao_pt }, { status: 200 })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro desconhecido"
     return NextResponse.json({ error: `Falha na comunicacao com IA: ${message}` }, { status: 502 })
